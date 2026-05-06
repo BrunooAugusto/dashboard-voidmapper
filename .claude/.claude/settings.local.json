@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__claude_ai_Figma__get_design_context",
+      "mcp__claude_ai_Figma__get_screenshot",
+      "mcp__claude_ai_Figma__get_metadata",
+      "Bash(python -c \"import sys,json; data=json.load\\(sys.stdin\\); text=data[0]['text']; import xml.etree.ElementTree as ET; root=ET.fromstring\\(text\\); [print\\(c.get\\('id'\\), c.get\\('name'\\)\\) for c in root]\")"
+    ]
+  }
+}

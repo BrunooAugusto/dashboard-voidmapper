@@ -1,0 +1,11 @@
+import WeeklyChartCard from './WeeklyChartCard'
+import RehabilitatedProjectsCard from './RehabilitatedProjectsCard'
+
+export default function MidSection() {
+  return (
+    <section className="grid grid-cols-1 lg:grid-cols-[587fr_493fr] gap-4">
+      <WeeklyChartCard />
+      <RehabilitatedProjectsCard />
+    </section>
+  )
+}

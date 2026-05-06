@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "../.claude"
+		},
+		{
+			"path": "../dist"
+		},
+		{
+			"path": "../node_modules"
+		},
+		{
+			"path": "."
+		}
+	]
+}
