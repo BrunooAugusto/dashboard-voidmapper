@@ -5,7 +5,7 @@ function formatDate(iso) {
 }
 
 function transform(p) {
-  return { ...p, surveys: p.surveyCount, date: formatDate(p.date), metragem: p.projectLength ?? null }
+  return { ...p, surveys: p.surveyCount, date: formatDate(p.date), metragem: p.projectLength ?? null, level: p.level ?? null }
 }
 
 export async function getProjects(search = '') {

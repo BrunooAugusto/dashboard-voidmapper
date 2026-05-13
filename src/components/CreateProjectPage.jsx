@@ -12,12 +12,15 @@ import { useLanguage } from '../contexts/LanguageContext'
 
 const today = new Date().toISOString().split('T')[0]
 
+const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6)
+
 const EMPTY_FORM = {
   projectName: '',
   date: today,
   surveys: 0,
   projectLength: '',
   fileName: '',
+  level: '',
   statuses: ['success'],
   notes: '',
   projectLink: '',
@@ -107,6 +110,7 @@ export default function CreateProjectPage({ onBack }) {
         statuses:      form.statuses.map(v => ({ variant: v })),
         notes:         form.notes       || null,
         projectUrl:    form.projectLink || null,
+        level:         form.level       ? parseInt(form.level, 10) : null,
       })
       // Upload any selected images now that we have a project ID
       for (const file of files) {
@@ -189,6 +193,17 @@ export default function CreateProjectPage({ onBack }) {
                   value={form.fileName}
                   onChange={(e) => set('fileName', e.target.value)}
                 />
+              </FormField>
+
+              <FormField label="Nível do Projeto">
+                <select
+                  value={form.level}
+                  onChange={(e) => set('level', e.target.value)}
+                  className="w-full h-[44px] px-4 rounded-[10px] bg-input-bg border border-border-soft text-sm font-medium text-ink-900 outline-none focus:border-brand-300 focus:bg-surface transition-colors"
+                >
+                  <option value="">Sem nível</option>
+                  {LEVELS.map(l => <option key={l} value={l}>Nível {l}</option>)}
+                </select>
               </FormField>
 
               <FormField label={t('form.status')}>

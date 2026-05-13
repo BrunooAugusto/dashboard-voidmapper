@@ -28,7 +28,7 @@ export async function getById(id, userId) {
 }
 
 export async function create(data, userId) {
-  const { code, statuses = [], date, surveyCount = 0, metragem, fileName, notes, projectUrl, projectLength } = data
+  const { code, statuses = [], date, surveyCount = 0, metragem, fileName, notes, projectUrl, projectLength, level } = data
   if (!code) throw Object.assign(new Error('code é obrigatório'), { status: 400 })
   return prisma.project.create({
     data: {
@@ -41,6 +41,7 @@ export async function create(data, userId) {
       notes:         notes         ?? null,
       projectUrl:    projectUrl    ?? null,
       projectLength: projectLength != null ? parseFloat(projectLength) : null,
+      level:         level         != null ? parseInt(level, 10)       : null,
       userId:        userId        ?? null,
     },
     include: { images: true },
@@ -49,7 +50,7 @@ export async function create(data, userId) {
 
 export async function update(id, data, userId) {
   await getById(id, userId)
-  const { code, statuses, date, surveyCount, metragem, fileName, notes, projectUrl, projectLength } = data
+  const { code, statuses, date, surveyCount, metragem, fileName, notes, projectUrl, projectLength, level } = data
   return prisma.project.update({
     where: { id },
     data: {
@@ -62,6 +63,7 @@ export async function update(id, data, userId) {
       ...(notes         !== undefined && { notes }),
       ...(projectUrl    !== undefined && { projectUrl }),
       ...(projectLength !== undefined && { projectLength: parseFloat(projectLength) }),
+      ...(level         !== undefined && { level: level != null ? parseInt(level, 10) : null }),
     },
     include: { images: true },
   })

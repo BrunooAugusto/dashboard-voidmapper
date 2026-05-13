@@ -17,6 +17,8 @@ function parseDateToInput(str) {
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
+const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6)
+
 function buildInitialForm(project) {
   return {
     projectName:   project?.code              ?? '',
@@ -24,6 +26,7 @@ function buildInitialForm(project) {
     surveys:       project?.surveys           ?? project?.surveyCount ?? 0,
     projectLength: String(project?.projectLength ?? ''),
     fileName:      project?.fileName          ?? '',
+    level:         project?.level             != null ? String(project.level) : '',
     statuses:      project?.statuses?.map(s => s.variant).filter(Boolean) ?? ['success'],
     notes:         project?.notes             ?? '',
     projectLink:   project?.projectUrl        ?? '',
@@ -122,6 +125,7 @@ export default function EditProjectPage({ project, onBack }) {
         statuses:      form.statuses.map(v => ({ variant: v })),
         notes:         form.notes       || null,
         projectUrl:    form.projectLink || null,
+        level:         form.level       ? parseInt(form.level, 10) : null,
       })
 
       // Delete images that were removed from the manager
@@ -210,6 +214,17 @@ export default function EditProjectPage({ project, onBack }) {
                   value={form.fileName}
                   onChange={(e) => set('fileName', e.target.value)}
                 />
+              </FormField>
+
+              <FormField label="Nível do Projeto">
+                <select
+                  value={form.level}
+                  onChange={(e) => set('level', e.target.value)}
+                  className="w-full h-[44px] px-4 rounded-[10px] bg-input-bg border border-border-soft text-sm font-medium text-ink-900 outline-none focus:border-brand-300 focus:bg-surface transition-colors"
+                >
+                  <option value="">Sem nível</option>
+                  {LEVELS.map(l => <option key={l} value={l}>Nível {l}</option>)}
+                </select>
               </FormField>
 
               <FormField label={t('form.status')}>

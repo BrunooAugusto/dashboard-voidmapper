@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { cn } from '../lib/cn'
 import Card from './Card'
-import FilterButton from './FilterButton'
 import ProjectCard from './ProjectCard'
 import SearchInput from './SearchInput'
-import { getProjects } from '../services/projectService'
+import { getProjects, deleteProject } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
+
+const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6) // 6..24
 
 export default function ProjectsPage({ onSelectProject, onNavigate }) {
   const { t } = useLanguage()
-  const [search, setSearch]           = useState('')
+  const [search,       setSearch]       = useState('')
   const [activeFilter, setActiveFilter] = useState(null)
-  const [projects, setProjects]       = useState([])
+  const [activeLevel,  setActiveLevel]  = useState('')   // '' = all
+  const [projects,     setProjects]     = useState([])
 
   useEffect(() => {
     getProjects().then(setProjects).catch(console.error)
@@ -25,13 +28,18 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
 
   const filtered = projects.filter((p) => {
     const matchesSearch = p.code.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter =
-      !activeFilter || p.statuses.some((s) => s.variant === activeFilter)
-    return matchesSearch && matchesFilter
+    const matchesStatus = !activeFilter || p.statuses.some((s) => s.variant === activeFilter)
+    const matchesLevel  = activeLevel === '' || p.level === Number(activeLevel)
+    return matchesSearch && matchesStatus && matchesLevel
   })
 
   function toggleFilter(key) {
     setActiveFilter((prev) => (prev === key ? null : key))
+  }
+
+  async function handleDelete(id) {
+    await deleteProject(id)
+    setProjects(prev => prev.filter(p => p.id !== id))
   }
 
   return (
@@ -58,7 +66,27 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <FilterButton label={t('projects.filterBy')} />
+        {/* Level dropdown */}
+        <div className="relative inline-flex items-center">
+          <select
+            value={activeLevel}
+            onChange={e => setActiveLevel(e.target.value)}
+            className={cn(
+              'h-[26px] appearance-none pl-3 pr-7 rounded-md border text-[12px] font-medium transition-colors cursor-pointer outline-none',
+              activeLevel !== ''
+                ? 'border-brand-500 bg-brand-500/10 text-brand-500'
+                : 'border-border-soft bg-surface text-ink-700 hover:bg-page',
+            )}
+          >
+            <option value="">Filtrar por Nível</option>
+            {LEVELS.map(l => (
+              <option key={l} value={l}>Nível {l}</option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-500" strokeWidth={2} />
+        </div>
+
+        {/* Status filter chips */}
         {FILTER_CHIPS.map((f) => (
           <button
             key={f.key}
@@ -81,7 +109,12 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
         {filtered.length > 0 ? (
           <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 4xl:grid-cols-4 5xl:grid-cols-5 gap-4 3xl:gap-5 4xl:gap-6">
             {filtered.map((p) => (
-              <ProjectCard key={p.id} project={p} onClick={() => onSelectProject?.(p)} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onClick={() => onSelectProject?.(p)}
+                onDelete={handleDelete}
+              />
             ))}
           </div>
         ) : (
