@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import AuthCard from './AuthCard'
 import AuthInput from './AuthInput'
+import AGALogo from '../AGALogo'
 import { useLanguage } from '../../contexts/LanguageContext'
 
 export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
@@ -44,13 +45,8 @@ export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
     <AuthCard className="max-w-[560px] p-8">
 
       {/* Brand mark */}
-      <div className="flex items-center gap-2 mb-6">
-        <div className="w-8 h-8 bg-brand-500 rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-white text-sm font-black leading-none select-none">V</span>
-        </div>
-        <span className="text-base font-bold tracking-tight text-ink-900">
-          Void <span className="text-brand-500">Mapper</span>
-        </span>
+      <div className="mb-6">
+        <AGALogo size="md" variant="light" />
       </div>
 
       {/* Heading */}

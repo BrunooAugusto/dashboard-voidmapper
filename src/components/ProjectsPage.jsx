@@ -27,9 +27,19 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
   ]
 
   const filtered = projects.filter((p) => {
-    const matchesSearch = p.code.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = !activeFilter || p.statuses.some((s) => s.variant === activeFilter)
-    const matchesLevel  = activeLevel === '' || p.level === Number(activeLevel)
+    const q        = search.trim().toLowerCase()
+    const statuses = Array.isArray(p.statuses) ? p.statuses : []
+
+    const matchesSearch = !q
+      || p.code.toLowerCase().includes(q)
+      || (p.fileName ?? '').toLowerCase().includes(q)
+      || (p.level != null && String(p.level).includes(q))
+      || statuses.some(s => (s.variant ?? '').toLowerCase().includes(q))
+
+    const matchesStatus = !activeFilter || statuses.some(s => s.variant === activeFilter)
+
+    const matchesLevel  = activeLevel === '' || (p.level != null && p.level === parseInt(activeLevel, 10))
+
     return matchesSearch && matchesStatus && matchesLevel
   })
 
@@ -78,7 +88,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
                 : 'border-border-soft bg-surface text-ink-700 hover:bg-page',
             )}
           >
-            <option value="">Filtrar por Nível</option>
+            <option value="">Todos os níveis</option>
             {LEVELS.map(l => (
               <option key={l} value={l}>Nível {l}</option>
             ))}

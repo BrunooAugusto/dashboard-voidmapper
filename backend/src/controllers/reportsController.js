@@ -4,7 +4,10 @@ import { ok } from '../utils/response.js'
 
 export async function getWeekly(req, res, next) {
   try {
-    const data = await getWeeklyReportData(req.user.id)
+    const { start, end } = req.query
+    const startDate = start ? new Date(start) : null
+    const endDate   = end   ? new Date(end)   : null
+    const data = await getWeeklyReportData(startDate, endDate)
     ok(res, data)
   } catch (err) {
     next(err)

@@ -11,6 +11,7 @@ import {
 import { cn } from '../lib/cn'
 import NavItem from './NavItem'
 import Avatar from './Avatar'
+import AGALogo from './AGALogo'
 import { useLanguage } from '../contexts/LanguageContext'
 
 const MAIN_MENU = [
@@ -51,9 +52,7 @@ export default function Sidebar({ activeId = 'dashboard', onNavigate, user = DEF
     >
       {/* Logo + mobile close button */}
       <div className="h-[76px] px-6 flex items-center justify-between">
-        <h1 className="text-[20px] font-bold tracking-tight text-ink-900 leading-6">
-          Void <span className="text-brand-500">Mapper</span>
-        </h1>
+        <AGALogo size="md" />
         <button
           type="button"
           onClick={onClose}

@@ -1,16 +1,17 @@
 import * as projectService from '../services/projectService.js'
+import { updateMonitoringFromProject } from '../services/monitoringService.js'
 import { ok } from '../utils/response.js'
 
 export async function list(req, res, next) {
   try {
-    const projects = await projectService.getAll({ ...req.query, userId: req.user.id })
+    const projects = await projectService.getAll(req.query)
     ok(res, { projects })
   } catch (err) { next(err) }
 }
 
 export async function show(req, res, next) {
   try {
-    const project = await projectService.getById(Number(req.params.id), req.user.id)
+    const project = await projectService.getById(Number(req.params.id))
     ok(res, { project })
   } catch (err) { next(err) }
 }
@@ -19,19 +20,20 @@ export async function create(req, res, next) {
   try {
     const project = await projectService.create(req.body, req.user.id)
     ok(res, { project }, 201)
+    updateMonitoringFromProject(project).catch(console.error)
   } catch (err) { next(err) }
 }
 
 export async function update(req, res, next) {
   try {
-    const project = await projectService.update(Number(req.params.id), req.body, req.user.id)
+    const project = await projectService.update(Number(req.params.id), req.body)
     ok(res, { project })
   } catch (err) { next(err) }
 }
 
 export async function remove(req, res, next) {
   try {
-    await projectService.remove(Number(req.params.id), req.user.id)
+    await projectService.remove(Number(req.params.id))
     ok(res, { message: 'Projeto removido com sucesso' })
   } catch (err) { next(err) }
 }

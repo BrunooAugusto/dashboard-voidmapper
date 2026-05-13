@@ -8,6 +8,7 @@ import { getMonitoringRows } from '../services/monitoringService'
 import { useLanguage } from '../contexts/LanguageContext'
 
 function getDaysStatus(daysUntilNext, frequencyDays) {
+  if (daysUntilNext === null || daysUntilNext === undefined) return 'neutral'
   const freq = parseInt(frequencyDays) || 7
   if (daysUntilNext < 0)  return 'danger'
   if (daysUntilNext <= Math.max(2, Math.floor(freq * 0.3))) return 'warning'
@@ -91,9 +92,10 @@ export default function MonitoringPage({ onBack, onSelectRow, onNew }) {
                       status === 'danger'  && 'bg-danger-fg text-white',
                       status === 'warning' && 'bg-warning-bg text-warning-fg',
                       status === 'success' && 'text-ink-900 font-normal',
+                      status === 'neutral' && 'text-ink-400 font-normal',
                     )}
                   >
-                    {row.daysUntilNext}
+                    {row.daysUntilNext ?? '—'}
                   </td>
                 </TableRow>
               )

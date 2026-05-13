@@ -3,14 +3,14 @@ import { ok } from '../utils/response.js'
 
 export async function list(req, res, next) {
   try {
-    const rows = await monitoringService.getAll(req.user.id)
+    const rows = await monitoringService.getAll()
     ok(res, { rows })
   } catch (err) { next(err) }
 }
 
 export async function show(req, res, next) {
   try {
-    const row = await monitoringService.getById(Number(req.params.id), req.user.id)
+    const row = await monitoringService.getById(Number(req.params.id))
     ok(res, { row })
   } catch (err) { next(err) }
 }
@@ -24,14 +24,14 @@ export async function create(req, res, next) {
 
 export async function update(req, res, next) {
   try {
-    const row = await monitoringService.update(Number(req.params.id), req.body, req.user.id)
+    const row = await monitoringService.update(Number(req.params.id), req.body)
     ok(res, { row })
   } catch (err) { next(err) }
 }
 
 export async function remove(req, res, next) {
   try {
-    await monitoringService.remove(Number(req.params.id), req.user.id)
+    await monitoringService.remove(Number(req.params.id))
     ok(res, { message: 'Monitoramento removido com sucesso' })
   } catch (err) { next(err) }
 }

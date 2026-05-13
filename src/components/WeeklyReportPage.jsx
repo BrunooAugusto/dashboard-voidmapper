@@ -1,19 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import {
-  ArrowLeft, Save, Calendar, Printer,
-  AlertTriangle, CheckCircle, Newspaper,
+  ArrowLeft, Save, Printer, Calendar,
+  AlertTriangle, FileBarChart, Loader2,
 } from 'lucide-react'
-import {
-  MONITORING_ROWS,
-  REHABILITATED_PROJECTS,
-  RECENT_SURVEYS,
-  REPORT_DATA,
-} from '../data/dashboard'
-import { getMetrics, getRecentSurveys, getRehabilitatedProjects } from '../services/surveyService'
-import { getMonitoringRows } from '../services/monitoringService'
-import { generateReport, getWeeklyReportFull } from '../services/reportService'
-import StatusBadge from './StatusBadge'
-import { useLanguage } from '../contexts/LanguageContext'
+import AGALogo from './AGALogo'
+import { getWeeklyReportFull, generateReport } from '../services/reportService'
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -25,9 +16,7 @@ function getMonday(d) {
 }
 
 function fmtDate(d) {
-  return d instanceof Date && !isNaN(d)
-    ? d.toLocaleDateString('pt-BR')
-    : '—'
+  return d instanceof Date && !isNaN(d) ? d.toLocaleDateString('pt-BR') : '—'
 }
 
 function fmtDatetime(d) {
@@ -40,24 +29,17 @@ function getPeriodDates(mode, customStart, customEnd) {
   const now = new Date()
   switch (mode) {
     case 'last7': {
-      const start = new Date()
-      start.setDate(now.getDate() - 6)
-      start.setHours(0, 0, 0, 0)
+      const start = new Date(); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0)
       return { start, end: new Date() }
     }
     case 'thisWeek': {
-      const start = getMonday(new Date())
-      start.setHours(0, 0, 0, 0)
+      const start = getMonday(new Date()); start.setHours(0, 0, 0, 0)
       return { start, end: new Date() }
     }
     case 'lastWeek': {
       const thisMonday = getMonday(new Date())
-      const end        = new Date(thisMonday)
-      end.setDate(end.getDate() - 1)
-      end.setHours(23, 59, 59, 999)
-      const start = new Date(thisMonday)
-      start.setDate(start.getDate() - 7)
-      start.setHours(0, 0, 0, 0)
+      const end   = new Date(thisMonday); end.setDate(end.getDate() - 1); end.setHours(23, 59, 59, 999)
+      const start = new Date(thisMonday); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0)
       return { start, end }
     }
     case 'custom':
@@ -66,15 +48,132 @@ function getPeriodDates(mode, customStart, customEnd) {
         end:   customEnd   ? new Date(customEnd   + 'T23:59:59') : new Date(),
       }
     default: {
-      const start = new Date()
-      start.setDate(now.getDate() - 6)
-      start.setHours(0, 0, 0, 0)
+      const start = new Date(); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0)
       return { start, end: new Date() }
     }
   }
 }
 
-// ── Small UI helpers ──────────────────────────────────────────────────────────
+function transformMonRow(r) {
+  return {
+    ...r,
+    project:    r.projectName,
+    surveys:    r.surveyCount,
+    lastSurvey: r.lastSurvey ? new Date(r.lastSurvey).toLocaleDateString('pt-BR') : '—',
+  }
+}
+
+function buildInsights(surveyCount, metrics, overdueRows, monitorRows) {
+  const insights = []
+  const deforms  = metrics.deformations   ?? 0
+  const rehab    = metrics.rehabilitating ?? 0
+  const errors   = metrics.errors         ?? 0
+  const soon     = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext > 0 && r.daysUntilNext <= 3)
+  const overdue  = overdueRows
+
+  insights.push(surveyCount > 0
+    ? `${surveyCount} novo${surveyCount !== 1 ? 's' : ''} levantamento${surveyCount !== 1 ? 's' : ''} cadastrado${surveyCount !== 1 ? 's' : ''} no período.`
+    : 'Nenhum levantamento cadastrado no período selecionado.')
+
+  insights.push(deforms > 0
+    ? `${deforms} projeto${deforms !== 1 ? 's' : ''} com deformação ativa — requer atenção imediata.`
+    : 'Nenhum projeto com deformação detectado no período.')
+
+  insights.push(overdue.length > 0
+    ? `${overdue.length} monitoramento${overdue.length !== 1 ? 's' : ''} com prazo vencido sem levantamento realizado.`
+    : 'Todos os monitoramentos estão dentro do prazo estabelecido.')
+
+  if (soon.length > 0)
+    insights.push(`${soon.length} monitoramento${soon.length !== 1 ? 's' : ''} vence${soon.length !== 1 ? 'm' : ''} nos próximos 3 dias.`)
+  if (rehab > 0)
+    insights.push(`${rehab} projeto${rehab !== 1 ? 's' : ''} em processo ativo de reabilitação.`)
+  if (errors > 0)
+    insights.push(`${errors} projeto${errors !== 1 ? 's' : ''} com erro${errors !== 1 ? 's' : ''} de levantamento registrado${errors !== 1 ? 's' : ''}.`)
+
+  return insights
+}
+
+// ── Document sub-components ───────────────────────────────────────────────────
+
+function SectionHead({ num, title, count }) {
+  return (
+    <div className="flex items-baseline gap-3 mb-8 pb-3 border-b border-[#E4E4E4]">
+      <span className="text-[11px] font-bold font-mono text-[#F97316] shrink-0 tabular-nums">
+        {String(num).padStart(2, '0')}.
+      </span>
+      <h3 className="text-[11px] font-extrabold tracking-[0.15em] text-[#111111] uppercase shrink-0">
+        {title}
+      </h3>
+      {count != null && (
+        <span className="text-[11px] font-semibold text-[#999999]">({count})</span>
+      )}
+    </div>
+  )
+}
+
+function BigStat({ value, label, accent }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <span className={`text-[3.5rem] font-black leading-none tabular-nums tracking-tight ${accent ? 'text-[#F97316]' : 'text-[#111111]'}`}>
+        {value ?? 0}
+      </span>
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#888888] leading-tight">
+        {label}
+      </span>
+    </div>
+  )
+}
+
+function DocTableHeader({ cols }) {
+  return (
+    <div className={`grid gap-4 px-5 py-3 bg-[#F5F5F5]`} style={{ gridTemplateColumns: cols.map(c => c.width ?? '1fr').join(' ') }}>
+      {cols.map((col, i) => (
+        <span key={i} className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#888888]">
+          {col.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function ProjectBlock({ project }) {
+  const images = project.images ?? []
+  return (
+    <div className="project-block py-7 border-b border-[#ECECEC] last:border-0">
+      <div className="mb-4">
+        <h4 className="text-2xl font-black text-[#111111] tracking-tight leading-tight">
+          {project.code}
+        </h4>
+        <div className="w-10 h-[3px] bg-[#F97316] mt-2 rounded-sm" />
+      </div>
+      {project.fileName && (
+        <p className="text-[11px] font-mono text-[#AAAAAA] mb-4">{project.fileName}</p>
+      )}
+      {images.length > 0 && (
+        <div className={`grid gap-3 mb-5 ${images.length >= 2 ? 'grid-cols-2' : 'grid-cols-1 max-w-sm'}`}>
+          {images.slice(0, 2).map((url, i) => (
+            <div key={i} className="aspect-video overflow-hidden bg-[#F0F0F0]">
+              <img
+                src={url}
+                alt={`${project.code} — imagem ${i + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {project.notes && (
+        <p className="text-sm text-[#555555] leading-relaxed border-l-2 border-[#E4E4E4] pl-4">
+          {project.notes}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function EmptyNote({ message }) {
+  return <p className="text-sm text-[#BBBBBB] italic py-1">{message}</p>
+}
 
 function PeriodTab({ label, active, onClick }) {
   return (
@@ -92,53 +191,21 @@ function PeriodTab({ label, active, onClick }) {
   )
 }
 
-function SectionHead({ num, title }) {
-  return (
-    <div className="flex items-center gap-3 mb-5">
-      <span className="text-[10px] font-bold tracking-[0.18em] text-[#F97316] font-mono shrink-0">
-        {String(num).padStart(2, '0')}.
-      </span>
-      <h3 className="text-xs font-bold tracking-[0.10em] text-[#0F172A] uppercase whitespace-nowrap">{title}</h3>
-      <div className="flex-1 h-px bg-[#E7E7E8]" />
-    </div>
-  )
-}
-
-function StatCard({ label, value, accent }) {
-  return (
-    <div className={`flex-1 min-w-[110px] rounded-xl p-4 flex flex-col gap-3 border ${
-      accent
-        ? 'border-[#F97316]/30 bg-[#FFF7ED]'
-        : 'border-[#E7E7E8] bg-white'
-    }`}>
-      <span className="text-[11px] font-medium text-[#64748B] leading-tight">{label}</span>
-      <span className={`text-4xl font-bold leading-none ${accent ? 'text-[#F97316]' : 'text-[#0F172A]'}`}>
-        {value}
-      </span>
-    </div>
-  )
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function WeeklyReportPage({ onBack, user }) {
-  const { t } = useLanguage()
-
-  // Period state
-  const [mode, setMode]               = useState('last7')
-  const [customStart, setCustomStart] = useState('')
-  const [customEnd, setCustomEnd]     = useState('')
-
-  // Report state
-  const [generated, setGenerated]     = useState(false)
-  const [generatedAt, setGeneratedAt] = useState(null)
-  const [periodDates, setPeriodDates] = useState(null)
+  const [mode,         setMode]         = useState('last7')
+  const [customStart,  setCustomStart]  = useState('')
+  const [customEnd,    setCustomEnd]    = useState('')
+  const [generated,    setGenerated]    = useState(false)
+  const [generatedAt,  setGeneratedAt]  = useState(null)
+  const [periodDates,  setPeriodDates]  = useState(null)
   const [observations, setObservations] = useState('')
-  const [conclusion, setConclusion]   = useState('')
-  const [saved, setSaved]             = useState(false)
-
-  // Live data (falls back to mock data if API unavailable)
-  const [liveData, setLiveData]       = useState(null)
+  const [conclusion,   setConclusion]   = useState('')
+  const [saved,        setSaved]        = useState(false)
+  const [loading,      setLoading]      = useState(false)
+  const [error,        setError]        = useState(null)
+  const [reportData,   setReportData]   = useState(null)
 
   const PERIOD_TABS = [
     { key: 'last7',    label: 'Últimos 7 dias' },
@@ -147,76 +214,86 @@ export default function WeeklyReportPage({ onBack, user }) {
     { key: 'custom',   label: 'Personalizado' },
   ]
 
-  // Fetch live data on mount — silently falls back to mocks on failure
-  useEffect(() => {
-    Promise.all([
-      getMetrics().catch(() => null),
-      getRecentSurveys().catch(() => null),
-      getRehabilitatedProjects().catch(() => null),
-      getMonitoringRows().catch(() => null),
-      getWeeklyReportFull().catch(() => null),
-    ]).then(([metrics, surveys, rehab, monitoring, weeklyFull]) => {
-      setLiveData({
-        metrics,
-        surveys,
-        rehab,
-        monitoring,
-        deformationProjects: weeklyFull?.deformationProjects ?? null,
-      })
-    })
-  }, [])
+  // ── Derived data ─────────────────────────────────────────────────────────────
 
-  // Derive display data — live API data takes priority, mocks are fallback
-  const weekStats = liveData?.metrics ? [
-    { label: 'Novos Levantamentos', value: liveData.metrics.totalSurveys ?? REPORT_DATA.weekStats[0].value },
-    { label: 'Deformação',          value: liveData.metrics.deformations  ?? REPORT_DATA.weekStats[1].value },
-    { label: 'Reabilitação',        value: liveData.metrics.rehabilitating ?? REPORT_DATA.weekStats[2].value },
-    { label: 'Erros',               value: liveData.metrics.errors         ?? REPORT_DATA.weekStats[3].value },
-  ] : REPORT_DATA.weekStats
+  const surveyRows     = reportData?.surveys             ?? []
+  const rehabRows      = reportData?.rehab               ?? []
+  const deformProjects = reportData?.deformationProjects ?? []
+  const errorProjects  = reportData?.errorProjects       ?? []
+  const metrics        = reportData?.metrics             ?? { totalProjects: 0, deformations: 0, rehabilitating: 0, errors: 0 }
+  const monitorRows    = (reportData?.monitoring ?? []).map(transformMonRow)
 
-  const surveyRows        = (liveData?.surveys    && liveData.surveys.length    > 0) ? liveData.surveys    : RECENT_SURVEYS
-  const rehabRows         = (liveData?.rehab      && liveData.rehab.length      > 0) ? liveData.rehab      : REHABILITATED_PROJECTS
-  const monitorRows       = (liveData?.monitoring && liveData.monitoring.length > 0) ? liveData.monitoring : MONITORING_ROWS
-  const overdueRows       = monitorRows.filter((r) => r.daysUntilNext <= 0)
-  const deformProjects    = liveData?.deformationProjects ?? null
+  const overdueRows = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext <= 0)
+  const warnRows    = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext > 0 && r.daysUntilNext <= 3)
 
-  function handleGenerate() {
+  const insights = useMemo(
+    () => buildInsights(surveyRows.length, metrics, overdueRows, monitorRows),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [surveyRows.length, metrics.deformations, metrics.rehabilitating, metrics.errors, overdueRows.length, monitorRows.length],
+  )
+
+  // ── Actions ───────────────────────────────────────────────────────────────────
+
+  async function handleGenerate() {
     const dates = getPeriodDates(mode, customStart, customEnd)
     setPeriodDates(dates)
     setGeneratedAt(new Date())
-    setGenerated(true)
-    setSaved(false)
-    setTimeout(() => {
-      document.getElementById('vm-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 80)
-  }
-
-  function handleExportPDF() {
-    window.print()
+    setLoading(true)
+    setError(null)
+    setGenerated(false)
+    setReportData(null)
+    try {
+      const data = await getWeeklyReportFull(dates.start, dates.end)
+      setReportData(data)
+      setGenerated(true)
+      setTimeout(() => document.getElementById('vm-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    } catch (err) {
+      setError(err.message || 'Erro ao gerar relatório. Verifique a conexão com o servidor.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleSave() {
+    if (!periodDates) return
     const payload = {
-      periodStart:   periodDates?.start?.toISOString(),
-      periodEnd:     periodDates?.end?.toISOString(),
+      periodStart:    periodDates.start.toISOString(),
+      periodEnd:      periodDates.end.toISOString(),
       observations,
       conclusion,
-      newSurveys:    liveData?.metrics?.totalSurveys    ?? 0,
-      deformations:  liveData?.metrics?.deformations    ?? 0,
-      rehabilitation: liveData?.metrics?.rehabilitating ?? 0,
-      errors:        liveData?.metrics?.errors          ?? 0,
+      newSurveys:     surveyRows.length,
+      deformations:   metrics.deformations   ?? 0,
+      rehabilitation: metrics.rehabilitating ?? 0,
+      errors:         metrics.errors         ?? 0,
     }
-    await generateReport(payload)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
+    try {
+      await generateReport(payload)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    }
   }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* ── Controls — hidden when printing ──────────────────────────────── */}
+      {generated && (
+        <style>{`
+          @media print {
+            @page { margin: 1.8cm 2cm; size: A4 portrait; }
+            .project-block { break-inside: avoid; }
+            .report-section { break-inside: avoid; }
+            .cover-page { break-after: page; }
+          }
+        `}</style>
+      )}
+
+      {/* ── Controls (screen only) ─────────────────────────────────────────── */}
       <div className="print:hidden">
 
-        {/* Breadcrumb */}
         <div className="flex items-center gap-2 mb-5">
           <button
             type="button"
@@ -230,39 +307,32 @@ export default function WeeklyReportPage({ onBack, user }) {
           <span className="text-sm font-semibold text-ink-900">Relatório Semanal</span>
         </div>
 
-        {/* Period tabs + action buttons */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-2">
-
-          {/* Left: period tabs */}
           <div className="flex flex-wrap gap-2">
-            {PERIOD_TABS.map((tab) => (
+            {PERIOD_TABS.map(tab => (
               <PeriodTab
                 key={tab.key}
                 label={tab.label}
                 active={mode === tab.key}
-                onClick={() => { setMode(tab.key); setGenerated(false) }}
+                onClick={() => { setMode(tab.key); setGenerated(false); setError(null) }}
               />
             ))}
           </div>
-
-          {/* Right: actions */}
           <div className="flex items-center gap-2 flex-wrap">
-            {saved && (
-              <span className="text-xs text-success-fg font-semibold">✓ Salvo com sucesso</span>
-            )}
+            {saved && <span className="text-xs text-success-fg font-semibold">✓ Salvo</span>}
             <button
               type="button"
-              disabled={!generated}
+              disabled={!generated || loading}
               onClick={handleSave}
               className="h-9 px-4 flex items-center gap-1.5 rounded-full border border-border-soft bg-surface text-sm font-medium text-ink-700 hover:bg-page transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Save className="w-3.5 h-3.5" strokeWidth={2} />
-              Salvar Relatório
+              Salvar
             </button>
             <button
               type="button"
-              disabled={!generated}
-              onClick={handleExportPDF}
+              disabled={!generated || loading}
+              onClick={() => window.print()}
               className="h-9 px-4 flex items-center gap-1.5 rounded-full border border-border-soft bg-surface text-sm font-medium text-ink-700 hover:bg-page transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Printer className="w-3.5 h-3.5" strokeWidth={2} />
@@ -270,384 +340,391 @@ export default function WeeklyReportPage({ onBack, user }) {
             </button>
             <button
               type="button"
+              disabled={loading}
               onClick={handleGenerate}
-              className="h-9 px-5 flex items-center gap-1.5 rounded-full bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors"
+              className="h-9 px-5 flex items-center gap-1.5 rounded-full bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors disabled:opacity-60"
             >
-              <Newspaper className="w-3.5 h-3.5" strokeWidth={2} />
-              Gerar Relatório
+              {loading
+                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={2} /> Gerando...</>
+                : <><FileBarChart className="w-3.5 h-3.5" strokeWidth={2} /> Gerar Relatório</>
+              }
             </button>
           </div>
         </div>
 
-        {/* Custom date range — only shown in custom mode */}
         {mode === 'custom' && (
           <div className="flex items-center gap-2 mt-3 mb-1">
             <Calendar className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={2} />
             <input
               type="date"
               value={customStart}
-              onChange={(e) => setCustomStart(e.target.value)}
+              onChange={e => setCustomStart(e.target.value)}
               className="h-8 px-2.5 text-xs rounded-lg border border-border-soft bg-surface text-ink-900 focus:outline-none focus:border-brand-400 transition-colors"
             />
             <span className="text-xs text-ink-400">até</span>
             <input
               type="date"
               value={customEnd}
-              onChange={(e) => setCustomEnd(e.target.value)}
+              onChange={e => setCustomEnd(e.target.value)}
               className="h-8 px-2.5 text-xs rounded-lg border border-border-soft bg-surface text-ink-900 focus:outline-none focus:border-brand-400 transition-colors"
             />
           </div>
         )}
 
-        {/* Empty state */}
-        {!generated && (
-          <div className="mt-6 rounded-xl border border-dashed border-border bg-surface flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center">
-              <Newspaper className="w-8 h-8 text-brand-500" strokeWidth={1.5} />
-            </div>
-            <div className="text-center max-w-xs">
-              <p className="text-sm font-semibold text-ink-900">Nenhum relatório gerado</p>
-              <p className="text-xs text-ink-500 mt-1.5 leading-relaxed">
-                Selecione o período desejado e clique em{' '}
-                <strong className="text-ink-700">Gerar Relatório</strong> para criar a pré-visualização.
-              </p>
-            </div>
+        {/* Loading */}
+        {loading && (
+          <div className="mt-6 rounded-2xl border border-border-soft bg-surface flex flex-col items-center justify-center py-28 gap-4">
+            <Loader2 className="w-10 h-10 text-brand-500 animate-spin" strokeWidth={1.5} />
+            <p className="text-sm font-medium text-ink-500">Buscando dados do período...</p>
           </div>
         )}
 
+        {/* Error */}
+        {error && !loading && (
+          <div className="mt-6 rounded-2xl border border-danger-bg bg-danger-bg/40 flex flex-col items-center justify-center py-16 gap-3 px-8">
+            <AlertTriangle className="w-8 h-8 text-danger-fg" strokeWidth={1.5} />
+            <p className="text-sm font-semibold text-danger-fg text-center">{error}</p>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              className="mt-1 h-9 px-5 rounded-full bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
+        {/* Empty prompt */}
+        {!loading && !error && !generated && (
+          <div className="mt-6 rounded-2xl border-2 border-dashed border-border bg-surface flex flex-col items-center justify-center py-28 gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-[#FFF7ED] border border-[#F97316]/20 flex items-center justify-center">
+              <FileBarChart className="w-9 h-9 text-[#F97316]" strokeWidth={1.5} />
+            </div>
+            <div className="text-center max-w-sm">
+              <p className="text-base font-bold text-ink-900">Nenhum relatório gerado</p>
+              <p className="text-sm text-ink-500 mt-2 leading-relaxed">
+                Selecione o período acima e clique em{' '}
+                <strong className="text-ink-700">Gerar Relatório</strong> para criar a pré-visualização.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              className="mt-1 h-10 px-6 flex items-center gap-2 rounded-full bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
+            >
+              <FileBarChart className="w-4 h-4" strokeWidth={2} />
+              Gerar Relatório
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ── Report document ───────────────────────────────────────────────── */}
-      {/* Visible on screen after generation; fills the page when printing   */}
-      {generated && periodDates && (
+      {/* ── Report Document ───────────────────────────────────────────────────── */}
+      {generated && periodDates && reportData && (
         <div
           id="vm-report"
-          className="mt-6 print:mt-0 report-root bg-white rounded-xl overflow-hidden border border-border-soft print:border-0 print:rounded-none"
+          className="mt-6 print:mt-0 bg-white rounded-2xl overflow-hidden shadow-sm border border-[#E4E4E4] print:shadow-none print:border-0 print:rounded-none"
+          style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
         >
 
-          {/* ── Header band ──────────────────────────────────────────────── */}
-          <div className="bg-[#0F172A] px-8 pt-8 pb-7">
-            <div className="flex items-start justify-between gap-6">
+          {/* ── COVER ─────────────────────────────────────────────────────────── */}
+          <div className="cover-page px-10 pt-10 pb-14 border-b-2 border-[#EBEBEB]">
 
-              {/* Brand */}
-              <div className="flex items-center gap-3">
-                <div className="w-11 h-11 bg-[#F97316] rounded-xl flex items-center justify-center shrink-0">
-                  <span className="text-white text-xl font-black leading-none select-none">V</span>
-                </div>
-                <div>
-                  <div className="text-white text-xl font-bold tracking-tight">
-                    Void <span className="text-[#F97316]">Mapper</span>
-                  </div>
-                  <div className="text-[#94A3B8] text-[11px] mt-0.5 font-medium">
-                    Sistema de Gestão de Levantamentos
-                  </div>
-                </div>
-              </div>
-
-              {/* Report meta */}
+            {/* Top row: logo + generation meta */}
+            <div className="flex items-start justify-between gap-6 mb-10">
+              <AGALogo size="lg" variant="light" />
               <div className="text-right">
-                <div className="text-[#F97316] text-[10px] font-bold tracking-[0.18em] uppercase">
-                  Relatório Semanal
-                </div>
-                <div className="text-white text-base font-semibold mt-1.5">
-                  {fmtDate(periodDates.start)} – {fmtDate(periodDates.end)}
-                </div>
-                <div className="text-[#94A3B8] text-xs mt-1">
-                  Gerado em {fmtDatetime(generatedAt)}
-                </div>
+                <p className="text-[11px] text-[#BBBBBB] font-medium tracking-wide">Gerado em</p>
+                <p className="text-[12px] font-semibold text-[#666666]">{fmtDatetime(generatedAt)}</p>
+                {user?.name && (
+                  <p className="text-[11px] text-[#AAAAAA] mt-0.5">por {user.name}</p>
+                )}
               </div>
             </div>
 
-            <div className="mt-6 h-px bg-[#F97316]/25" />
+            {/* Orange accent rule */}
+            <div className="h-[3px] bg-[#F97316] w-full mb-10 rounded-sm" />
+
+            {/* Main title block */}
+            <div className="mb-10">
+              <p className="text-[11px] font-bold tracking-[0.22em] text-[#F97316] uppercase mb-4">
+                Relatório Operacional Semanal
+              </p>
+              <h1 className="text-[2.75rem] font-black text-[#0A0A0A] tracking-tight leading-[1.06] mb-5">
+                Relatório Semanal<br />AngloGold Ashanti
+              </h1>
+              <p className="text-base text-[#666666] leading-relaxed max-w-2xl">
+                Número de projetos analisados, adicionados e identificação de possíveis
+                deformações e erros no período.
+              </p>
+            </div>
+
+            {/* Period line */}
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-px bg-[#CCCCCC]" />
+              <span className="text-sm text-[#777777] font-medium">Período de análise:</span>
+              <span className="text-sm font-black text-[#111111] tracking-wide">
+                {fmtDate(periodDates.start)} — {fmtDate(periodDates.end)}
+              </span>
+            </div>
           </div>
 
-          {/* ── Body ─────────────────────────────────────────────────────── */}
-          <div className="p-8 flex flex-col gap-12">
+          {/* ── BODY ──────────────────────────────────────────────────────────── */}
+          <div className="px-10 py-10 flex flex-col gap-14 bg-white">
 
-            {/* 01. Resumo Executivo */}
+            {/* 01. RESUMO EXECUTIVO ────────────────────────────────────────── */}
             <section className="report-section">
               <SectionHead num={1} title="Resumo Executivo" />
-              <div className="flex flex-wrap gap-3">
-                {weekStats.map((s, i) => (
-                  <StatCard
-                    key={s.label}
-                    label={s.label}
-                    value={s.value}
-                    accent={i === 0}
-                  />
+
+              {/* Big numbers grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-10 pb-10 mb-8 border-b border-[#ECECEC]">
+                <BigStat value={surveyRows.length}          label="Novos Levantamentos" accent />
+                <BigStat value={metrics.deformations  ?? 0} label="Com Deformação" />
+                <BigStat value={metrics.rehabilitating ?? 0} label="Em Reabilitação" />
+                <BigStat value={metrics.errors         ?? 0} label="Com Erros" />
+              </div>
+
+              {/* Operational summary as clean bullets */}
+              <div className="flex flex-col gap-2.5">
+                {insights.map((text, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="mt-[8px] w-1.5 h-1.5 rounded-full bg-[#CCCCCC] shrink-0" />
+                    <p className="text-sm text-[#444444] leading-relaxed">{text}</p>
+                  </div>
                 ))}
               </div>
             </section>
 
-            {/* 02. Novos Levantamentos */}
+            {/* 02. NOVOS LEVANTAMENTOS ────────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={2} title="Novos Levantamentos" />
-              <div className="rounded-xl border border-[#E7E7E8] overflow-hidden">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-[#F6F6F7] border-b border-[#E7E7E8]">
-                      {['Local', 'Arquivo', 'Status', 'Data', 'Nº Levant.', 'Metragem'].map((h, i) => (
-                        <th
-                          key={h}
-                          className={`px-3 py-2.5 font-semibold text-[#334155] whitespace-nowrap ${
-                            i === 4 ? 'text-center' : i === 5 ? 'text-right' : 'text-left'
-                          }`}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+              <SectionHead num={2} title="Novos Levantamentos" count={surveyRows.length || undefined} />
+
+              {surveyRows.length === 0 ? (
+                <EmptyNote message="Nenhum levantamento cadastrado no período selecionado." />
+              ) : (
+                <div className="border border-[#E4E4E4] overflow-hidden">
+                  <DocTableHeader cols={[
+                    { label: 'Local / Código', width: '2fr' },
+                    { label: 'Arquivo',        width: '3fr' },
+                    { label: 'Levant.',        width: '1fr' },
+                    { label: 'Data',           width: '1.5fr' },
+                    { label: 'Metragem',       width: '1fr' },
+                  ]} />
+                  <div className="divide-y divide-[#EFEFEF]">
                     {surveyRows.map((row, i) => (
-                      <tr
+                      <div
                         key={row.id ?? i}
-                        className={`border-b border-[#E7E7E8] last:border-0 ${i % 2 !== 0 ? 'bg-[#F6F6F7]/50' : 'bg-white'}`}
+                        className="grid gap-4 px-5 py-3.5 bg-white"
+                        style={{ gridTemplateColumns: '2fr 3fr 1fr 1.5fr 1fr' }}
                       >
-                        <td className="px-3 py-2.5 font-medium text-[#0F172A]">{row.local}</td>
-                        <td className="px-3 py-2.5 font-mono text-[10px] text-[#334155] max-w-[200px]">
-                          <span className="block truncate" title={row.file}>{row.file}</span>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <StatusBadge variant={row.status.variant}>
-                            {t('status.' + row.status.variant)}
-                          </StatusBadge>
-                        </td>
-                        <td className="px-3 py-2.5 text-[#64748B] whitespace-nowrap">{row.date}</td>
-                        <td className="px-3 py-2.5 text-center text-[#64748B]">{row.surveys}</td>
-                        <td className="px-3 py-2.5 text-right text-[#64748B]">{row.metering}</td>
-                      </tr>
+                        <span className="text-sm font-bold text-[#111111] truncate">{row.local}</span>
+                        <span className="text-[11px] font-mono text-[#777777] truncate" title={row.file}>{row.file}</span>
+                        <span className="text-sm text-[#666666] tabular-nums">{row.surveys}</span>
+                        <span className="text-sm text-[#666666]">{row.date}</span>
+                        <span className="text-sm text-[#666666]">{row.metering ?? '—'}</span>
+                      </div>
                     ))}
-                    {surveyRows.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-[#94A3B8] text-xs">
-                          Nenhum levantamento no período selecionado.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </div>
+              )}
             </section>
 
-            {/* 03. Imagens dos Projetos com Deformação */}
-            {deformProjects && deformProjects.some(p => p.mainImage) && (
-              <section className="report-section">
-                <SectionHead num={3} title="Imagens dos Levantamentos" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {deformProjects.filter(p => p.mainImage).map((p, i) => (
-                    <div key={i} className="flex flex-col gap-1.5 report-image-card">
-                      <div className="aspect-[627/340] rounded-lg overflow-hidden bg-zinc-900">
-                        <img src={p.mainImage} alt={p.code} className="w-full h-full object-cover" loading="lazy" />
-                      </div>
-                      <span className="text-[10px] text-[#64748B] font-mono leading-tight truncate">{p.code}</span>
-                      <div className="h-[2px] w-16 bg-[#F97316] rounded-full" />
-                    </div>
+            {/* 03. PROJETOS COM DEFORMAÇÃO ────────────────────────────────── */}
+            <section className="report-section">
+              <SectionHead num={3} title="Projetos com Deformação" count={deformProjects.length || undefined} />
+
+              {deformProjects.length === 0 ? (
+                <EmptyNote message="Nenhum projeto com deformação ativa no período." />
+              ) : (
+                <div className="border-t border-[#ECECEC]">
+                  {deformProjects.map((p, i) => (
+                    <ProjectBlock key={p.id ?? i} project={p} />
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
 
-            {/* 04. Projetos com Deformação */}
+            {/* 04. PROJETOS COM ERRO ──────────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={4} title="Projetos com Deformação" />
-              {deformProjects && deformProjects.length > 0 ? (
-                <div className="rounded-xl border border-[#E7E7E8] overflow-hidden">
-                  <div className="bg-[#FEE2E2] px-4 py-2.5 flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-[#B91C1C] shrink-0" strokeWidth={2} />
-                    <span className="text-sm font-semibold text-[#B91C1C]">
-                      {deformProjects.length} projeto{deformProjects.length !== 1 ? 's' : ''} com deformação
-                    </span>
+              <SectionHead num={4} title="Projetos com Erro" count={errorProjects.length || undefined} />
+
+              {errorProjects.length === 0 ? (
+                <EmptyNote message="Nenhum projeto com erro de levantamento no período." />
+              ) : (
+                <div className="border-t border-[#ECECEC]">
+                  {errorProjects.map((p, i) => (
+                    <ProjectBlock key={p.id ?? i} project={p} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* 05. REABILITAÇÃO ───────────────────────────────────────────── */}
+            <section className="report-section">
+              <SectionHead num={5} title="Projetos em Reabilitação" count={rehabRows.length || undefined} />
+
+              {rehabRows.length === 0 ? (
+                <EmptyNote message="Nenhum projeto em reabilitação no momento." />
+              ) : (
+                <div className="border border-[#E4E4E4] overflow-hidden">
+                  <DocTableHeader cols={[
+                    { label: 'Código do Projeto', width: '2fr' },
+                    { label: 'Última Atualização', width: '2fr' },
+                    { label: 'Situação', width: '2fr' },
+                  ]} />
+                  <div className="divide-y divide-[#EFEFEF]">
+                    {rehabRows.map((p, i) => (
+                      <div
+                        key={p.id ?? i}
+                        className="grid gap-4 px-5 py-3.5 bg-white"
+                        style={{ gridTemplateColumns: '2fr 2fr 2fr' }}
+                      >
+                        <span className="text-sm font-bold text-[#111111]">{p.code}</span>
+                        <span className="text-sm text-[#666666]">{p.date}</span>
+                        <span className="text-sm text-[#444444] font-medium">Em Reabilitação</span>
+                      </div>
+                    ))}
                   </div>
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-[#F6F6F7] border-b border-[#E7E7E8]">
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Código</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Arquivo</th>
-                        <th className="text-center px-4 py-2.5 font-semibold text-[#334155]">Levant.</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Data</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deformProjects.map((p, i) => (
-                        <tr key={p.id ?? i} className={`border-b border-[#E7E7E8] last:border-0 ${i % 2 !== 0 ? 'bg-[#F6F6F7]/50' : 'bg-white'}`}>
-                          <td className="px-4 py-2.5 font-semibold text-[#0F172A]">{p.code}</td>
-                          <td className="px-4 py-2.5 font-mono text-[10px] text-[#334155] max-w-[180px]">
-                            <span className="block truncate" title={p.fileName}>{p.fileName ?? '—'}</span>
-                          </td>
-                          <td className="px-4 py-2.5 text-center text-[#64748B]">{p.surveys}</td>
-                          <td className="px-4 py-2.5 text-[#64748B] whitespace-nowrap">{p.date}</td>
-                          <td className="px-4 py-2.5">
-                            <StatusBadge variant="danger">{t('status.danger')}</StatusBadge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {deformProjects.some(p => p.notes) && (
-                    <div className="p-4 border-t border-[#E7E7E8]">
-                      {deformProjects.filter(p => p.notes).map((p, i) => (
-                        <div key={i} className="mb-3 last:mb-0">
-                          <div className="text-[10px] font-bold text-[#64748B] uppercase tracking-wide mb-1">{p.code} — Observações</div>
-                          <p className="text-xs text-[#64748B] leading-relaxed">{p.notes}</p>
+                </div>
+              )}
+            </section>
+
+            {/* 06. ALERTAS DE MONITORAMENTO ───────────────────────────────── */}
+            <section className="report-section">
+              <SectionHead
+                num={6}
+                title="Alertas de Monitoramento"
+                count={(overdueRows.length + warnRows.length) || undefined}
+              />
+
+              {overdueRows.length === 0 && warnRows.length === 0 ? (
+                <EmptyNote message={
+                  monitorRows.length === 0
+                    ? 'Nenhum monitoramento cadastrado.'
+                    : 'Todos os monitoramentos estão dentro do prazo.'
+                } />
+              ) : (
+                <div className="flex flex-col gap-8">
+
+                  {overdueRows.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#111111] mb-4">
+                        Levantamentos Vencidos — {overdueRows.length}
+                      </p>
+                      <div className="border border-[#E4E4E4] overflow-hidden">
+                        <DocTableHeader cols={[
+                          { label: 'Área',          width: '2fr' },
+                          { label: 'Projeto',       width: '2fr' },
+                          { label: 'Frequência',    width: '1fr' },
+                          { label: 'Último Levant.', width: '2fr' },
+                          { label: 'Atraso',        width: '1fr' },
+                        ]} />
+                        <div className="divide-y divide-[#EFEFEF]">
+                          {overdueRows.map((row, i) => (
+                            <div
+                              key={i}
+                              className="grid gap-4 px-5 py-3.5 bg-white items-center"
+                              style={{ gridTemplateColumns: '2fr 2fr 1fr 2fr 1fr' }}
+                            >
+                              <span className="text-sm font-bold text-[#111111]">{row.area}</span>
+                              <span className="text-sm text-[#444444]">{row.project}</span>
+                              <span className="text-sm text-[#666666]">{row.frequencyDays}d</span>
+                              <span className="text-sm text-[#666666]">{row.lastSurvey}</span>
+                              <span className="text-[11px] font-black text-[#111111] tabular-nums">
+                                +{Math.abs(row.daysUntilNext)}d
+                              </span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {warnRows.length > 0 && (
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#111111] mb-4">
+                        Vencimento Próximo — {warnRows.length}
+                      </p>
+                      <div className="border border-[#E4E4E4] overflow-hidden">
+                        <DocTableHeader cols={[
+                          { label: 'Área',    width: '2fr' },
+                          { label: 'Projeto', width: '3fr' },
+                          { label: 'Prazo',   width: '1fr' },
+                        ]} />
+                        <div className="divide-y divide-[#EFEFEF]">
+                          {warnRows.map((row, i) => (
+                            <div
+                              key={i}
+                              className="grid gap-4 px-5 py-3.5 bg-white"
+                              style={{ gridTemplateColumns: '2fr 3fr 1fr' }}
+                            >
+                              <span className="text-sm font-bold text-[#111111]">{row.area}</span>
+                              <span className="text-sm text-[#444444]">{row.project}</span>
+                              <span className="text-sm font-semibold text-[#444444] tabular-nums">{row.daysUntilNext}d</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 p-3 rounded-lg bg-[#DCFCE7] border border-[#DCFCE7]">
-                  <CheckCircle className="w-4 h-4 text-[#15803D] shrink-0" strokeWidth={2} />
-                  <span className="text-sm text-[#15803D] font-medium">Nenhum projeto com deformação no período.</span>
-                </div>
               )}
             </section>
 
-            {/* 05. Projetos Reabilitados */}
-            <section className="report-section">
-              <SectionHead num={5} title="Projetos Reabilitados" />
-              {rehabRows.length > 0 ? (
-                <div className="rounded-xl border border-[#E7E7E8] overflow-hidden">
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-[#F6F6F7] border-b border-[#E7E7E8]">
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Código do Projeto</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Data</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Situação</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rehabRows.map((p, i) => (
-                        <tr
-                          key={p.id ?? i}
-                          className={`border-b border-[#E7E7E8] last:border-0 ${i % 2 !== 0 ? 'bg-[#F6F6F7]/50' : 'bg-white'}`}
-                        >
-                          <td className="px-4 py-2.5 font-semibold text-[#0F172A]">{p.code}</td>
-                          <td className="px-4 py-2.5 text-[#64748B]">{p.date}</td>
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-1.5">
-                              <CheckCircle className="w-3.5 h-3.5 text-[#15803D]" strokeWidth={2} />
-                              <span className="text-[#15803D] font-medium">Reabilitado</span>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-sm text-[#64748B] italic">Nenhum projeto reabilitado no período.</p>
-              )}
-            </section>
-
-            {/* 06. Alertas de Monitoramento */}
-            <section className="report-section">
-              <SectionHead num={6} title="Alertas de Monitoramento" />
-              {overdueRows.length > 0 ? (
-                <div className="rounded-xl border border-[#FEE2E2] overflow-hidden">
-                  <div className="bg-[#FEE2E2] px-4 py-2.5 flex items-center gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-[#B91C1C] shrink-0" strokeWidth={2} />
-                    <span className="text-xs font-semibold text-[#B91C1C]">
-                      {overdueRows.length} levantamento{overdueRows.length !== 1 ? 's' : ''} vencido{overdueRows.length !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <table className="w-full text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-[#F6F6F7] border-b border-[#E7E7E8]">
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Área</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Projeto</th>
-                        <th className="text-center px-4 py-2.5 font-semibold text-[#334155]">Frequência</th>
-                        <th className="text-left px-4 py-2.5 font-semibold text-[#334155]">Último Levant.</th>
-                        <th className="text-center px-4 py-2.5 font-semibold text-[#334155]">Atraso</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overdueRows.map((row, i) => (
-                        <tr key={i} className="border-b border-[#E7E7E8] last:border-0 bg-white">
-                          <td className="px-4 py-2.5 font-semibold text-[#0F172A]">{row.area}</td>
-                          <td className="px-4 py-2.5 text-[#334155]">{row.project}</td>
-                          <td className="px-4 py-2.5 text-center text-[#64748B]">{row.frequencyDays}d</td>
-                          <td className="px-4 py-2.5 text-[#64748B]">{row.lastSurvey}</td>
-                          <td className="px-4 py-2.5 text-center">
-                            <span className="inline-block px-2 py-0.5 rounded-md bg-[#FEE2E2] text-[#B91C1C] font-bold text-[11px]">
-                              +{Math.abs(row.daysUntilNext)}d
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-[#DCFCE7] border border-[#DCFCE7]">
-                  <CheckCircle className="w-4 h-4 text-[#15803D] shrink-0" strokeWidth={2} />
-                  <span className="text-sm text-[#15803D] font-medium">
-                    Todos os monitoramentos estão em dia.
-                  </span>
-                </div>
-              )}
-            </section>
-
-            {/* 07. Observações */}
+            {/* 07. OBSERVAÇÕES ────────────────────────────────────────────── */}
             <section className="report-section">
               <SectionHead num={7} title="Observações" />
-              <textarea
-                value={observations}
-                onChange={(e) => setObservations(e.target.value)}
-                placeholder="Digite aqui as observações da semana..."
-                rows={5}
-                className="w-full p-4 text-sm text-[#334155] border border-[#E7E7E8] rounded-xl resize-none focus:outline-none focus:border-[#F97316] bg-[#F6F6F7] leading-relaxed placeholder:text-[#94A3B8] print:border-[#E7E7E8] print:bg-transparent print:resize-none transition-colors"
-                style={{ fontFamily: 'inherit' }}
-              />
+              <div className="relative">
+                <textarea
+                  value={observations}
+                  onChange={e => setObservations(e.target.value)}
+                  placeholder="Registre ocorrências relevantes, mudanças de procedimento, pontos de atenção identificados no período..."
+                  rows={5}
+                  className="w-full p-5 text-sm text-[#333333] border border-[#E4E4E4] resize-none focus:outline-none focus:border-[#F97316]/50 leading-relaxed placeholder:text-[#CCCCCC] print:bg-transparent transition-colors"
+                  style={{ fontFamily: 'inherit' }}
+                />
+                {observations && (
+                  <div className="absolute bottom-3 right-3 text-[10px] text-[#CCCCCC] print:hidden">
+                    {observations.length} car.
+                  </div>
+                )}
+              </div>
             </section>
 
-            {/* 08. Conclusão */}
+            {/* 08. CONCLUSÃO ──────────────────────────────────────────────── */}
             <section className="report-section">
               <SectionHead num={8} title="Conclusão" />
               <textarea
                 value={conclusion}
-                onChange={(e) => setConclusion(e.target.value)}
-                placeholder="Digite aqui a conclusão do período..."
+                onChange={e => setConclusion(e.target.value)}
+                placeholder="Síntese das atividades do período, resultados alcançados e recomendações para o próximo ciclo de monitoramento..."
                 rows={4}
-                className="w-full p-4 text-sm text-[#334155] border border-[#E7E7E8] rounded-xl resize-none focus:outline-none focus:border-[#F97316] bg-[#F6F6F7] leading-relaxed placeholder:text-[#94A3B8] print:border-[#E7E7E8] print:bg-transparent print:resize-none transition-colors"
+                className="w-full p-5 text-sm text-[#333333] border border-[#E4E4E4] resize-none focus:outline-none focus:border-[#F97316]/50 leading-relaxed placeholder:text-[#CCCCCC] print:bg-transparent transition-colors"
                 style={{ fontFamily: 'inherit' }}
               />
             </section>
 
-            {/* ── Footer / Signature ─────────────────────────────────────── */}
-            <div className="pt-6 mt-2 border-t border-[#E7E7E8] flex items-end justify-between gap-6">
-              {/* Left: Responsible */}
+            {/* ── FOOTER ──────────────────────────────────────────────────── */}
+            <div className="pt-8 border-t-2 border-[#E4E4E4] flex items-end justify-between gap-6 flex-wrap">
               <div>
-                <div className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-wide mb-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#AAAAAA] mb-2">
                   Elaborado por
-                </div>
-                <div className="text-sm font-bold text-[#0F172A]">
-                  {user?.name ?? 'Void Mapper'}
-                </div>
+                </p>
+                <p className="text-sm font-black text-[#111111]">{user?.name ?? '—'}</p>
                 {user?.role && (
-                  <div className="text-xs text-[#64748B] mt-0.5">{user.role}</div>
+                  <p className="text-xs text-[#666666] mt-0.5">{user.role}</p>
                 )}
-                <div className="mt-4 w-40 border-b border-[#94A3B8]" />
-                <div className="text-[10px] text-[#94A3B8] mt-1">Assinatura</div>
+                <div className="mt-8 w-52 border-b border-[#CCCCCC]" />
+                <p className="text-[10px] text-[#AAAAAA] mt-1.5 tracking-wide">
+                  Assinatura / Visto
+                </p>
               </div>
 
-              {/* Right: System info */}
-              <div className="text-right">
-                <div className="flex items-center gap-1.5 justify-end mb-1">
-                  <div className="w-5 h-5 bg-[#F97316] rounded-md flex items-center justify-center shrink-0">
-                    <span className="text-white text-[10px] font-black">V</span>
-                  </div>
-                  <span className="text-sm font-bold text-[#0F172A]">
-                    Void <span className="text-[#F97316]">Mapper</span>
-                  </span>
-                </div>
-                <div className="text-[10px] text-[#64748B]">
-                  Sistema de Gestão de Levantamentos
-                </div>
-                <div className="text-[10px] text-[#94A3B8] mt-0.5">
-                  {fmtDatetime(generatedAt)}
-                </div>
+              <div className="text-right flex flex-col items-end gap-2">
+                <AGALogo size="sm" variant="light" />
+                <p className="text-[10px] text-[#AAAAAA]">Sistema de Gestão de Levantamentos</p>
+                <p className="text-[10px] text-[#AAAAAA]">{fmtDatetime(generatedAt)}</p>
+                <div className="h-[3px] w-12 bg-[#F97316] rounded-sm mt-2" />
               </div>
             </div>
 

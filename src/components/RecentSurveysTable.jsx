@@ -57,9 +57,13 @@ export default function RecentSurveysTable() {
                 </span>
               </TableCell>
               <TableCell>
-                <StatusBadge variant={row.status.variant}>
-                  {t('status.' + row.status.variant)}
-                </StatusBadge>
+                <div className="flex flex-wrap gap-1">
+                  {(row.statuses ?? (row.status ? [row.status] : [{ variant: 'success' }])).map((s, i) => (
+                    <StatusBadge key={i} variant={s.variant}>
+                      {t('status.' + s.variant)}
+                    </StatusBadge>
+                  ))}
+                </div>
               </TableCell>
               <TableCell muted>{row.date}</TableCell>
               <TableCell align="center">{row.surveys}</TableCell>

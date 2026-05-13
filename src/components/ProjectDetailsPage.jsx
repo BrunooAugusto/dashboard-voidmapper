@@ -1,30 +1,38 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Pencil, FileText, Image } from 'lucide-react'
+import { ArrowLeft, Pencil, FileText, Image, Clock } from 'lucide-react'
 import Card from './Card'
 import MetaCard from './MetaCard'
 import StatusBadge from './StatusBadge'
 import ImageCarousel from './ImageCarousel'
-import { getProjectById } from '../services/projectService'
+import { getProjectById, getProjectSurveys } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 
 export default function ProjectDetailsPage({ project, onBack, onEdit }) {
   const { t } = useLanguage()
-  const [detail, setDetail] = useState(null)
+  const [detail, setDetail]   = useState(null)
   const [loading, setLoading] = useState(true)
+  const [surveys, setSurveys] = useState([])
 
   useEffect(() => {
     if (!project?.id) { setLoading(false); return }
     setLoading(true)
-    getProjectById(project.id)
-      .then(setDetail)
-      .catch(() => setDetail(null))
+    Promise.all([
+      getProjectById(project.id),
+      getProjectSurveys(project.id).catch(() => []),
+    ]).then(([proj, srvs]) => {
+      setDetail(proj)
+      setSurveys(srvs)
+    }).catch(() => setDetail(null))
       .finally(() => setLoading(false))
   }, [project?.id])
 
   const d = detail ?? project
   const code = d?.code ?? '—'
   const statuses = d?.statuses?.length ? d.statuses : [{ variant: 'success' }]
-  const surveys = d?.surveys ?? d?.surveyCount ?? 0
+  const surveyCount = Array.isArray(d?.surveys)
+    ? (d?.surveyCount ?? d?.surveys.length)
+    : Number(d?.surveys ?? d?.surveyCount ?? d?.survey_count ?? 0)
+  const rehabStatus = d?.rehabilitationStatus
   const images = (d?.images ?? [])
     .map(img => img.url ?? img.src ?? img.path ?? img.imageUrl)
     .filter(Boolean)
@@ -52,9 +60,6 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
         </button>
         <span className="text-ink-400 text-sm">/</span>
         <span className="text-sm font-semibold text-ink-900">{code}</span>
-        {statuses.map((s, i) => (
-          <StatusBadge key={i} variant={s.variant}>{t('status.' + s.variant)}</StatusBadge>
-        ))}
       </div>
 
       <Card>
@@ -94,12 +99,22 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
 
             <div className="grid grid-cols-3 3xl:grid-cols-4 gap-2 3xl:gap-3">
               <MetaCard label={t('detail.lastSurvey')}   value={d?.date ?? '—'} />
-              <MetaCard label={t('detail.surveysCount')} value={String(surveys)} />
+              <MetaCard label={t('detail.surveysCount')} value={String(surveyCount)} />
               <MetaCard label={t('detail.totalArea')}    value={d?.metragem ? `${d.metragem} m` : '—'} />
             </div>
           </div>
 
-          {/* 3 — Observations */}
+          {/* 3 — Rehabilitation status (only when project has warning status) */}
+          {rehabStatus && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning-bg border border-warning-fg/20">
+              <span className="w-2 h-2 rounded-full bg-warning-fg shrink-0" />
+              <span className="text-xs font-semibold text-warning-fg">
+                {rehabStatus === 'rehabilitated' ? 'Reabilitado' : 'Em Reabilitação'}
+              </span>
+            </div>
+          )}
+
+          {/* 4 — Observations */}
           {d?.notes && (
             <div className="bg-page border border-border-soft rounded-lg p-3 flex flex-col gap-2">
               <span className="text-sm font-semibold text-ink-900">{t('detail.notes')}</span>
@@ -130,7 +145,36 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
             </button>
           </div>
 
-          {/* 5 — Image gallery (always visible) */}
+          {/* 5 — Survey history */}
+          {surveys.length > 0 && (
+            <div className="border-t border-border-soft pt-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Clock className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
+                <span className="text-xs font-semibold text-ink-700">Histórico de Levantamentos</span>
+                <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">{surveys.length}</span>
+              </div>
+              <div className="flex flex-col divide-y divide-border-soft rounded-lg border border-border-soft overflow-hidden">
+                {surveys.map((s, i) => (
+                  <div key={s.id ?? i} className="flex items-center gap-3 px-3 py-2.5 bg-page text-xs">
+                    <span className="font-mono text-ink-400 shrink-0 w-5 text-right">{i + 1}</span>
+                    <span className="font-medium text-ink-700 truncate flex-1" title={s.file}>{s.file || '—'}</span>
+                    <span className="text-ink-400 shrink-0">
+                      {s.createdAt
+                        ? new Date(s.createdAt).toLocaleDateString('pt-BR')
+                        : s.date
+                          ? new Date(s.date).toLocaleDateString('pt-BR')
+                          : '—'}
+                    </span>
+                    {s.metering && (
+                      <span className="text-ink-400 shrink-0">{s.metering} m</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 6 — Image gallery (always visible) */}
           <div className="border-t border-border-soft pt-4">
             {images.length > 0 ? (
               <ImageCarousel images={images} />

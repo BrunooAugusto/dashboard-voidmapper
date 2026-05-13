@@ -9,29 +9,28 @@ function daysUntilNext(lastSurvey, frequencyDays) {
 }
 
 function withDays(row) {
-  return { ...row, daysUntilNext: daysUntilNext(row.lastSurvey, row.frequencyDays) }
+  const days = row.lastSurvey != null
+    ? daysUntilNext(row.lastSurvey, row.frequencyDays)
+    : null
+  return { ...row, daysUntilNext: days }
 }
 
-export async function getAll(userId) {
-  const where = userId !== undefined ? { userId } : {}
-  const rows = await prisma.monitoring.findMany({ where, orderBy: { area: 'asc' } })
+export async function getAll() {
+  const rows = await prisma.monitoring.findMany({ orderBy: { area: 'asc' } })
   return rows.map(withDays)
 }
 
-export async function getById(id, userId) {
+export async function getById(id) {
   const row = await prisma.monitoring.findUnique({ where: { id } })
   if (!row) throw Object.assign(new Error('Monitoramento não encontrado'), { status: 404 })
-  if (userId !== undefined && row.userId !== null && row.userId !== userId) {
-    throw Object.assign(new Error('Monitoramento não encontrado'), { status: 404 })
-  }
   return withDays(row)
 }
 
 export async function create(data, userId) {
   const { area, projectName, frequencyDays, lastSurvey, surveyCount = 0, projectId } = data
-  if (!area || !projectName || !frequencyDays || !lastSurvey) {
+  if (!area || !projectName || !frequencyDays) {
     throw Object.assign(
-      new Error('area, projectName, frequencyDays e lastSurvey são obrigatórios'),
+      new Error('area, projectName e frequencyDays são obrigatórios'),
       { status: 400 },
     )
   }
@@ -40,7 +39,7 @@ export async function create(data, userId) {
       area,
       projectName,
       frequencyDays: parseInt(frequencyDays),
-      lastSurvey:    new Date(lastSurvey),
+      lastSurvey:    lastSurvey ? new Date(lastSurvey) : null,
       surveyCount:   parseInt(surveyCount) || 0,
       userId:        userId ?? null,
       ...(projectId && { projectId: parseInt(projectId) }),
@@ -49,8 +48,26 @@ export async function create(data, userId) {
   return withDays(row)
 }
 
-export async function update(id, data, userId) {
-  await getById(id, userId)
+export async function updateMonitoringFromProject(project) {
+  if (!project.fileName) return
+  const allRows = await prisma.monitoring.findMany()
+  const scanner = project.fileName.toLowerCase()
+  const matches = allRows.filter(row =>
+    scanner.includes(row.projectName.trim().toLowerCase())
+  )
+  for (const row of matches) {
+    await prisma.monitoring.update({
+      where: { id: row.id },
+      data: {
+        lastSurvey:  project.date ? new Date(project.date) : project.createdAt,
+        surveyCount: { increment: 1 },
+      },
+    })
+  }
+}
+
+export async function update(id, data) {
+  await getById(id)
   const { area, projectName, frequencyDays, lastSurvey, surveyCount } = data
   const row = await prisma.monitoring.update({
     where: { id },
@@ -58,14 +75,14 @@ export async function update(id, data, userId) {
       ...(area          !== undefined && { area }),
       ...(projectName   !== undefined && { projectName }),
       ...(frequencyDays !== undefined && { frequencyDays: parseInt(frequencyDays) }),
-      ...(lastSurvey    !== undefined && { lastSurvey: new Date(lastSurvey) }),
+      ...(lastSurvey    !== undefined && { lastSurvey: lastSurvey ? new Date(lastSurvey) : null }),
       ...(surveyCount   !== undefined && { surveyCount: parseInt(surveyCount) }),
     },
   })
   return withDays(row)
 }
 
-export async function remove(id, userId) {
-  await getById(id, userId)
+export async function remove(id) {
+  await getById(id)
   return prisma.monitoring.delete({ where: { id } })
 }

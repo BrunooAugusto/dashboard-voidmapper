@@ -44,7 +44,7 @@ export default function ProjectCard({ project, onClick, onDelete }) {
     >
       {/* Status badges + three-dots */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-wrap gap-[10px]">
+        <div className="flex flex-nowrap gap-1.5 overflow-hidden">
           {project.statuses.map((s, i) => (
             <StatusBadge key={i} variant={s.variant} size="md">
               {t('status.' + s.variant)}

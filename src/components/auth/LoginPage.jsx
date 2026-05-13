@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AuthCard from './AuthCard'
 import AuthInput from './AuthInput'
+import AGALogo from '../AGALogo'
 import { useLanguage } from '../../contexts/LanguageContext'
 
 export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPassword }) {
@@ -27,13 +28,8 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
     <AuthCard className="max-w-[440px] p-10">
 
       {/* Brand mark */}
-      <div className="flex items-center gap-2.5 mb-8">
-        <div className="w-9 h-9 bg-brand-500 rounded-xl flex items-center justify-center shrink-0">
-          <span className="text-white text-base font-black leading-none select-none">V</span>
-        </div>
-        <span className="text-xl font-bold tracking-tight text-ink-900">
-          Void <span className="text-brand-500">Mapper</span>
-        </span>
+      <div className="mb-8">
+        <AGALogo size="md" variant="light" />
       </div>
 
       {/* Heading */}

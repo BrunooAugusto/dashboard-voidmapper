@@ -17,8 +17,8 @@ const t = {
     'common.filterBy': 'Filtrar por',
 
     // ── Auth ────────────────────────────────────────────────────────────────
-    'auth.brand': 'Void Mapper',
-    'auth.copyright': '© {year} Void Mapper. Todos os direitos reservados.',
+    'auth.brand': 'AngloGold Ashanti',
+    'auth.copyright': '© {year} AngloGold Ashanti. Todos os direitos reservados.',
 
     'auth.login.title':          'Bem-vindo de volta.',
     'auth.login.subtitle':       'Insira suas credenciais para continuar.',
@@ -72,7 +72,8 @@ const t = {
     // ── Dashboard KPIs ──────────────────────────────────────────────────────
     'kpi.totalProjects':  'Total de Projetos',
     'kpi.deformations':   'Projetos com Deformações',
-    'kpi.rehabilitating': 'Projetos Reabilitando',
+    'kpi.rehabilitating': 'Projetos em Reabilitação',
+    'kpi.rehabilitated':  'Projetos Reabilitados',
     'kpi.errors':         'Projetos com Erros',
     'kpi.viewProjects':   'Ver Projetos',
     'kpi.newProject':     '+ Novo Projeto',
@@ -86,7 +87,7 @@ const t = {
     'chart.tooltip.total':          'Total',
     'chart.tooltip.approved':       'Aprovados',
     'chart.tooltip.deformations':   'Deformações',
-    'chart.tooltip.rehabilitating': 'Reabilitando',
+    'chart.tooltip.rehabilitating': 'Em Reabilitação',
     'chart.tooltip.errors':         'Erros',
 
     // ── Rehabilitated projects card ─────────────────────────────────────────
@@ -109,7 +110,7 @@ const t = {
     'projects.newProject':          '+ Novo Projeto',
     'projects.filterBy':            'Filtrar por Nível',
     'projects.filterDeformations':  'Deformações',
-    'projects.filterRehabilitating':'Reabilitando',
+    'projects.filterRehabilitating':'Em Reabilitação',
     'projects.filterErrors':        'Erros',
     'projects.noResults':           'Nenhum projeto encontrado.',
     'projects.survey':              'Levantamento',
@@ -159,7 +160,7 @@ const t = {
     // ── Status labels ───────────────────────────────────────────────────────
     'status.success':  'Aprovado',
     'status.danger':   'Deformação',
-    'status.warning':  'Reabilitando',
+    'status.warning':  'Em Reabilitação',
     'status.info':     'Erro',
 
     // ── Reports page ────────────────────────────────────────────────────────
@@ -185,8 +186,8 @@ const t = {
     'monitoring.editBreadcrumb':    'Editar Monitoramento',
     'monitoring.tableTitle':        'Gerenciamento_Levantamento',
     'monitoring.area':              'Área',
-    'monitoring.project':           'Projeto',
-    'monitoring.frequency':         'Frequência (em dias)',
+    'monitoring.project':           'Scanner / Projeto Monitorado',
+    'monitoring.frequency':         'Frequência de Monitoramento',
     'monitoring.lastSurvey':        'Último Levantamento',
     'monitoring.surveyCount':       'Nº de Levantamentos',
     'monitoring.daysUntilNext':     'Dias para o Próximo Levantamento',
@@ -307,8 +308,8 @@ const t = {
     'common.filterBy': 'Filter by',
 
     // ── Auth ────────────────────────────────────────────────────────────────
-    'auth.brand': 'Void Mapper',
-    'auth.copyright': '© {year} Void Mapper. All rights reserved.',
+    'auth.brand': 'AngloGold Ashanti',
+    'auth.copyright': '© {year} AngloGold Ashanti. All rights reserved.',
 
     'auth.login.title':         'Welcome back.',
     'auth.login.subtitle':      'Enter your credentials to continue.',
@@ -362,7 +363,8 @@ const t = {
     // ── Dashboard KPIs ──────────────────────────────────────────────────────
     'kpi.totalProjects':  'Total Projects',
     'kpi.deformations':   'Projects with Deformations',
-    'kpi.rehabilitating': 'Rehabilitating Projects',
+    'kpi.rehabilitating': 'Projects in Rehabilitation',
+    'kpi.rehabilitated':  'Rehabilitated Projects',
     'kpi.errors':         'Projects with Errors',
     'kpi.viewProjects':   'View Projects',
     'kpi.newProject':     '+ New Project',
@@ -376,7 +378,7 @@ const t = {
     'chart.tooltip.total':          'Total',
     'chart.tooltip.approved':       'Approved',
     'chart.tooltip.deformations':   'Deformations',
-    'chart.tooltip.rehabilitating': 'Rehabilitating',
+    'chart.tooltip.rehabilitating': 'In Rehabilitation',
     'chart.tooltip.errors':         'Errors',
 
     // ── Rehabilitated projects card ─────────────────────────────────────────
@@ -399,7 +401,7 @@ const t = {
     'projects.newProject':          '+ New Project',
     'projects.filterBy':            'Filter by Level',
     'projects.filterDeformations':  'Deformations',
-    'projects.filterRehabilitating':'Rehabilitating',
+    'projects.filterRehabilitating':'In Rehabilitation',
     'projects.filterErrors':        'Errors',
     'projects.noResults':           'No projects found.',
     'projects.survey':              'Survey',
@@ -449,7 +451,7 @@ const t = {
     // ── Status labels ───────────────────────────────────────────────────────
     'status.success':  'Approved',
     'status.danger':   'Deformation',
-    'status.warning':  'Rehabilitating',
+    'status.warning':  'In Rehabilitation',
     'status.info':     'Error',
 
     // ── Reports page ────────────────────────────────────────────────────────
@@ -472,8 +474,8 @@ const t = {
     'monitoring.editBreadcrumb':    'Edit Monitoring',
     'monitoring.tableTitle':        'Survey_Management',
     'monitoring.area':              'Area',
-    'monitoring.project':           'Project',
-    'monitoring.frequency':         'Frequency (days)',
+    'monitoring.project':           'Scanner / Monitored Project',
+    'monitoring.frequency':         'Monitoring Frequency',
     'monitoring.lastSurvey':        'Last Inspection',
     'monitoring.surveyCount':       'No. of Inspections',
     'monitoring.daysUntilNext':     'Days Until Next Survey',

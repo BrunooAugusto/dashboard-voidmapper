@@ -135,7 +135,7 @@ export default function MonitoringEditPage({ row, onBack }) {
       area:          form.area,
       projectName:   form.project,
       frequencyDays: parseInt(form.frequencyDays, 10),
-      lastSurvey:    form.lastSurvey,
+      lastSurvey:    form.lastSurvey || null,
       surveyCount:   parseInt(form.surveys, 10) || 0,
     }
     try {

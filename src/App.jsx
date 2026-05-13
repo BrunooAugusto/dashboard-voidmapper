@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import * as authService from './services/authService'
 import { setUnauthorizedHandler } from './services/api'
+import { supabase } from './lib/supabase.js'
 import AppShell from './components/AppShell'
 import KpiSection from './components/KpiSection'
 import MidSection from './components/MidSection'
@@ -22,11 +23,11 @@ import ProfileSetupPage from './components/auth/ProfileSetupPage'
 
 const EMPTY_PROFILE = { name: '', role: '', email: '', initials: '', avatarSrc: null }
 
-function DashboardPage({ onNavigate }) {
+function DashboardPage({ onNavigate, onSelectProject }) {
   return (
     <div className="space-y-5 3xl:space-y-6 4xl:space-y-8">
       <KpiSection onNavigate={onNavigate} />
-      <MidSection />
+      <MidSection onSelectProject={onSelectProject} />
       <RecentSurveysTable />
     </div>
   )
@@ -46,7 +47,7 @@ export default function App() {
   const [isProfileComplete, setIsProfileComplete] = useLocalStorage('voidmapper_onboarding_complete', false)
   const [userProfile, setUserProfileRaw]          = useLocalStorage('voidmapper_profile', EMPTY_PROFILE)
 
-  // Register 401 handler + verify token on startup
+  // Sync Supabase session state with app auth state
   useEffect(() => {
     setUnauthorizedHandler(() => {
       authService.logout()
@@ -55,14 +56,29 @@ export default function App() {
       setUserProfileRaw(EMPTY_PROFILE)
       setAuthScreen('login')
     })
-    const token = localStorage.getItem('voidmapper_token')
-    if (token && isAuthenticated) {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false)
+        setIsProfileComplete(false)
+        setUserProfileRaw(EMPTY_PROFILE)
+        setAuthScreen('login')
+      }
+    })
+
+    if (isAuthenticated) {
       authService.getMe()
         .then((user) => {
           setUserProfile({ name: user.name, role: user.role, email: user.email, initials: user.initials, avatarSrc: null })
         })
-        .catch(() => { /* 401 handled via handler; other errors ignored */ })
+        .catch(() => {
+          setIsAuthenticated(false)
+          setIsProfileComplete(false)
+          setUserProfileRaw(EMPTY_PROFILE)
+        })
     }
+
+    return () => subscription.unsubscribe()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [activeNav, setActiveNav]                   = useState('dashboard')
@@ -237,7 +253,7 @@ export default function App() {
         />
       )
     }
-    return <DashboardPage onNavigate={handleNavigate} />
+    return <DashboardPage onNavigate={handleNavigate} onSelectProject={handleSelectProject} />
   }
 
   return (

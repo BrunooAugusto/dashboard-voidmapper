@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useId, useMemo } from 'react'
 import { useLanguage } from '../contexts/LanguageContext'
 
-const PAD = { top: 20, right: 36, bottom: 40, left: 44 }
+const PAD    = { top: 20, right: 24, bottom: 40, left: 50 }
+const X_INNER = 20   // inset so first/last points don't sit flush at the grid edges
 
 function catmullRom(pts, tension = 0.4) {
   if (pts.length < 2) return ''
@@ -73,11 +74,10 @@ export default function SurveyAreaChart({ data }) {
     return [0, step, step * 2, step * 3, max]
   }, [max])
 
-  // Points go flush from PAD.left to PAD.left+chartW — aligns with grid edges
   const pts = useMemo(
     () =>
       data.map((d, i) => ({
-        x: PAD.left + (data.length <= 1 ? chartW / 2 : (i / (data.length - 1)) * chartW),
+        x: PAD.left + X_INNER + (data.length <= 1 ? (chartW - 2 * X_INNER) / 2 : (i / (data.length - 1)) * (chartW - 2 * X_INNER)),
         y: PAD.top  + (max > 0 ? (1 - d.surveys / max) * chartH : chartH),
       })),
     [data, chartW, chartH, max],
@@ -102,17 +102,28 @@ export default function SurveyAreaChart({ data }) {
             x1="0" y1={PAD.top} x2="0" y2={bottomY}
             gradientUnits="userSpaceOnUse"
           >
-            <stop offset="0%"   stopColor="var(--color-brand-500)" stopOpacity="0.28" />
-            <stop offset="100%" stopColor="var(--color-brand-500)" stopOpacity="0.02" />
+            <stop offset="0%"   stopColor="var(--color-brand-500)" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="var(--color-brand-500)" stopOpacity="0.01" />
           </linearGradient>
 
-          {/* Hard clip: curve/fill cannot escape the chart plotting area */}
+          {/*
+            Clip only vertically — extends full SVG width so bezier control
+            points beyond the first/last data points are never cut on the sides.
+            4px extra at the bottom prevents the stroke from being sliced at y=0.
+          */}
           <clipPath id={clipId}>
-            <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} />
+            <rect x={0} y={PAD.top} width={dims.width} height={chartH + 4} />
           </clipPath>
         </defs>
 
-        {/* ── Grid lines + Y-axis labels (outside clip) ───────────────── */}
+        {/* ── 1. Area fill — rendered FIRST so grid lines paint on top of it */}
+        {areaPath && (
+          <g clipPath={`url(#${clipId})`}>
+            <path d={areaPath} fill={`url(#${gradId})`} />
+          </g>
+        )}
+
+        {/* ── 2. Grid lines + Y-axis labels — above area, below line ──────── */}
         {ticks.map((tick) => {
           const y = PAD.top + (max > 0 ? (1 - tick / max) * chartH : chartH)
           return (
@@ -132,7 +143,7 @@ export default function SurveyAreaChart({ data }) {
           )
         })}
 
-        {/* ── X-axis labels (outside clip, below chart) ───────────────── */}
+        {/* ── 3. X-axis labels — below chart baseline ─────────────────────── */}
         {data.map((d, i) => (
           <text
             key={d.label}
@@ -146,13 +157,20 @@ export default function SurveyAreaChart({ data }) {
           </text>
         ))}
 
-        {/* ── Clipped chart area: fill + line + hover guide ────────────── */}
+        {/* ── 4. Line + hover — rendered LAST so always on top of grid ─────── */}
         <g clipPath={`url(#${clipId})`}>
 
-          {/* Area fill */}
-          {areaPath && <path d={areaPath} fill={`url(#${gradId})`} />}
+          {/* Hover guide — behind line */}
+          {hoverIdx !== null && (
+            <line
+              x1={pts[hoverIdx].x} y1={PAD.top}
+              x2={pts[hoverIdx].x} y2={bottomY}
+              stroke="var(--color-brand-500)" strokeWidth="1"
+              strokeDasharray="4 3" opacity="0.4"
+            />
+          )}
 
-          {/* Line */}
+          {/* Line — clearly above grid lines */}
           {linePath && (
             <path
               d={linePath}
@@ -161,16 +179,6 @@ export default function SurveyAreaChart({ data }) {
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-            />
-          )}
-
-          {/* Dashed vertical hover guide */}
-          {hoverIdx !== null && (
-            <line
-              x1={pts[hoverIdx].x} y1={PAD.top}
-              x2={pts[hoverIdx].x} y2={bottomY}
-              stroke="var(--color-brand-500)" strokeWidth="1"
-              strokeDasharray="4 3" opacity="0.45"
             />
           )}
 
@@ -188,7 +196,7 @@ export default function SurveyAreaChart({ data }) {
 
         </g>
 
-        {/* ── Invisible hover hit areas (full width, outside clip) ──────── */}
+        {/* ── 5. Invisible hover hit areas ─────────────────────────────────── */}
         {pts.map((pt, i) => {
           const x1 = i === 0              ? PAD.left           : (pts[i - 1].x + pt.x) / 2
           const x2 = i === pts.length - 1 ? PAD.left + chartW  : (pt.x + pts[i + 1].x) / 2

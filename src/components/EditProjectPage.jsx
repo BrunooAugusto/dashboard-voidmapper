@@ -11,9 +11,16 @@ import { updateProject, uploadProjectImage, deleteProjectImage } from '../servic
 import { useLanguage } from '../contexts/LanguageContext'
 
 function parseDateToInput(str) {
-  if (!str) return ''
-  if (str.includes('-')) return str
-  const [d, m, y] = str.split('/')
+  if (!str || str === '—') return ''
+  // ISO datetime "2024-01-15T00:00:00.000Z" → take only the date part
+  if (str.includes('T')) return str.split('T')[0]
+  // Already "YYYY-MM-DD"
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+  // pt-BR "DD/MM/YYYY"
+  const parts = str.split('/')
+  if (parts.length !== 3) return ''
+  const [d, m, y] = parts
+  if (!y || !m || !d) return ''
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
@@ -21,15 +28,16 @@ const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6)
 
 function buildInitialForm(project) {
   return {
-    projectName:   project?.code              ?? '',
-    date:          parseDateToInput(project?.date ?? ''),
-    surveys:       project?.surveys           ?? project?.surveyCount ?? 0,
-    projectLength: String(project?.projectLength ?? ''),
-    fileName:      project?.fileName          ?? '',
-    level:         project?.level             != null ? String(project.level) : '',
-    statuses:      project?.statuses?.map(s => s.variant).filter(Boolean) ?? ['success'],
-    notes:         project?.notes             ?? '',
-    projectLink:   project?.projectUrl        ?? '',
+    projectName:          project?.code              ?? '',
+    date:                 parseDateToInput(project?.date ?? ''),
+    surveys:              project?.surveyCount        ?? (typeof project?.surveys === 'number' ? project.surveys : 0),
+    projectLength:        String(project?.projectLength ?? ''),
+    fileName:             project?.fileName          ?? '',
+    level:                project?.level             != null ? String(project.level) : '',
+    statuses:             project?.statuses?.map(s => s.variant).filter(Boolean) ?? ['success'],
+    notes:                project?.notes             ?? '',
+    projectLink:          project?.projectUrl        ?? '',
+    rehabilitationStatus: project?.rehabilitationStatus ?? '',
   }
 }
 
@@ -117,15 +125,16 @@ export default function EditProjectPage({ project, onBack }) {
     setError(null)
     try {
       await updateProject(project.id, {
-        code:          form.projectName,
-        date:          form.date,
-        surveyCount:   Number(form.surveys),
-        projectLength: form.projectLength ? parseFloat(form.projectLength) : null,
-        fileName:      form.fileName    || null,
-        statuses:      form.statuses.map(v => ({ variant: v })),
-        notes:         form.notes       || null,
-        projectUrl:    form.projectLink || null,
-        level:         form.level       ? parseInt(form.level, 10) : null,
+        code:                 form.projectName,
+        date:                 form.date,
+        surveyCount:          Number(form.surveys),
+        projectLength:        form.projectLength ? parseFloat(form.projectLength) : null,
+        fileName:             form.fileName    || null,
+        statuses:             form.statuses.map(v => ({ variant: v })),
+        notes:                form.notes       || null,
+        projectUrl:           form.projectLink || null,
+        level:                form.level       ? parseInt(form.level, 10) : null,
+        rehabilitationStatus: form.rehabilitationStatus || null,
       })
 
       // Delete images that were removed from the manager
@@ -230,8 +239,86 @@ export default function EditProjectPage({ project, onBack }) {
               <FormField label={t('form.status')}>
                 <StatusPicker
                   value={form.statuses}
-                  onChange={(v) => set('statuses', v)}
+                  onChange={(v) => {
+                    setForm(prev => {
+                      const hadWarning = prev.statuses.includes('warning')
+                      const hasWarning = v.includes('warning')
+                      // If warning was just removed, clear rehab status
+                      const rehabilitationStatus = !hasWarning && hadWarning ? '' : prev.rehabilitationStatus
+                      return { ...prev, statuses: v, rehabilitationStatus }
+                    })
+                  }}
                 />
+              </FormField>
+
+              {/* Rehabilitation status — always visible */}
+              <FormField label="Status da Reabilitação">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Em Reabilitação — yellow/warning */}
+                  {(() => {
+                    const active = form.rehabilitationStatus === 'in_progress'
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => {
+                          if (active) {
+                            // deselect: remove warning from statuses, clear rehab
+                            return {
+                              ...prev,
+                              statuses: prev.statuses.filter(s => s !== 'warning'),
+                              rehabilitationStatus: '',
+                            }
+                          }
+                          return {
+                            ...prev,
+                            statuses: prev.statuses.includes('warning') ? prev.statuses : [...prev.statuses, 'warning'],
+                            rehabilitationStatus: 'in_progress',
+                          }
+                        })}
+                        className={cn(
+                          'h-[52px] flex items-center gap-2 px-4 rounded-[10px] border text-sm font-medium transition-colors',
+                          active
+                            ? 'bg-warning-bg border-warning-fg/30 text-warning-fg'
+                            : 'bg-input-bg border-border-soft text-ink-400 hover:bg-page',
+                        )}
+                      >
+                        <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', active ? 'bg-warning-fg' : 'bg-ink-300')} />
+                        Em Reabilitação
+                      </button>
+                    )
+                  })()}
+
+                  {/* Reabilitado — indigo/purple */}
+                  {(() => {
+                    const active = form.rehabilitationStatus === 'rehabilitated'
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => {
+                          if (active) {
+                            // deselect: clear rehab status
+                            return { ...prev, rehabilitationStatus: '' }
+                          }
+                          return {
+                            ...prev,
+                            // remove 'warning' since this project is done rehabilitating
+                            statuses: prev.statuses.filter(s => s !== 'warning'),
+                            rehabilitationStatus: 'rehabilitated',
+                          }
+                        })}
+                        className={cn(
+                          'h-[52px] flex items-center gap-2 px-4 rounded-[10px] border text-sm font-medium transition-colors',
+                          active
+                            ? 'bg-[#EEF2FF] border-[#6366F1]/30 text-[#4F46E5]'
+                            : 'bg-input-bg border-border-soft text-ink-400 hover:bg-page',
+                        )}
+                      >
+                        <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', active ? 'bg-[#6366F1]' : 'bg-ink-300')} />
+                        Reabilitado
+                      </button>
+                    )
+                  })()}
+                </div>
               </FormField>
 
               <FormField label={t('form.notes')}>
@@ -284,6 +371,7 @@ export default function EditProjectPage({ project, onBack }) {
           </div>
         </form>
       </Card>
+
     </>
   )
 }

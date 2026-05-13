@@ -1,5 +1,4 @@
 import { Bell, Moon, Sun, Menu } from 'lucide-react'
-import SearchInput from './SearchInput'
 import IconButton from './IconButton'
 import AccountMenu from './AccountMenu'
 import { useTheme } from '../contexts/ThemeContext'
@@ -31,10 +30,6 @@ export default function Topbar({ user, onMenuToggle }) {
         <div className="flex-1" />
 
         <div className="flex items-center gap-1.5">
-          <div className="hidden sm:block mr-1">
-            <SearchInput />
-          </div>
-
           <IconButton icon={Bell} label="Notifications" />
           <IconButton
             icon={isDark ? Sun : Moon}

@@ -7,7 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext'
 
 export default function KpiSection({ onNavigate }) {
   const { t } = useLanguage()
-  const [metrics, setMetrics] = useState({ totalProjects: 0, deformations: 0, rehabilitating: 0, errors: 0 })
+  const [metrics, setMetrics] = useState({ totalProjects: 0, deformations: 0, rehabilitating: 0, rehabilitated: 0, errors: 0 })
 
   useEffect(() => {
     getMetrics().then(setMetrics).catch(console.error)
