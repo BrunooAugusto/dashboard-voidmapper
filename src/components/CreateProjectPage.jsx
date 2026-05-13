@@ -18,7 +18,7 @@ const EMPTY_FORM = {
   surveys: 0,
   projectLength: '',
   fileName: '',
-  status: 'success',
+  statuses: ['success'],
   notes: '',
   projectLink: '',
 }
@@ -104,7 +104,7 @@ export default function CreateProjectPage({ onBack }) {
         surveyCount:   Number(form.surveys),
         projectLength: form.projectLength ? parseFloat(form.projectLength) : null,
         fileName:      form.fileName    || null,
-        statuses:      form.status ? [{ variant: form.status }] : [],
+        statuses:      form.statuses.map(v => ({ variant: v })),
         notes:         form.notes       || null,
         projectUrl:    form.projectLink || null,
       })
@@ -193,8 +193,8 @@ export default function CreateProjectPage({ onBack }) {
 
               <FormField label={t('form.status')}>
                 <StatusPicker
-                  value={form.status}
-                  onChange={(v) => set('status', v)}
+                  value={form.statuses}
+                  onChange={(v) => set('statuses', v)}
                 />
               </FormField>
 

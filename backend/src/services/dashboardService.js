@@ -41,7 +41,7 @@ export async function getRecentSurveys(userId) {
       status:   { variant: statuses[0]?.variant ?? 'success' },
       date:     p.createdAt.toLocaleDateString('pt-BR'),
       surveys:  p.surveyCount,
-      metering: p.metragem ?? '—',
+      metering: p.projectLength != null ? `${p.projectLength} m` : '—',
     }
   })
 }

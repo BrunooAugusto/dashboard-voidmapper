@@ -24,7 +24,7 @@ function buildInitialForm(project) {
     surveys:       project?.surveys           ?? project?.surveyCount ?? 0,
     projectLength: String(project?.projectLength ?? ''),
     fileName:      project?.fileName          ?? '',
-    status:        project?.statuses?.[0]?.variant ?? 'success',
+    statuses:      project?.statuses?.map(s => s.variant).filter(Boolean) ?? ['success'],
     notes:         project?.notes             ?? '',
     projectLink:   project?.projectUrl        ?? '',
   }
@@ -119,7 +119,7 @@ export default function EditProjectPage({ project, onBack }) {
         surveyCount:   Number(form.surveys),
         projectLength: form.projectLength ? parseFloat(form.projectLength) : null,
         fileName:      form.fileName    || null,
-        statuses:      [{ variant: form.status }],
+        statuses:      form.statuses.map(v => ({ variant: v })),
         notes:         form.notes       || null,
         projectUrl:    form.projectLink || null,
       })
@@ -214,8 +214,8 @@ export default function EditProjectPage({ project, onBack }) {
 
               <FormField label={t('form.status')}>
                 <StatusPicker
-                  value={form.status}
-                  onChange={(v) => set('status', v)}
+                  value={form.statuses}
+                  onChange={(v) => set('statuses', v)}
                 />
               </FormField>
 

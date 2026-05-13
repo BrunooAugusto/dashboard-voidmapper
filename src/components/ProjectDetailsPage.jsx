@@ -23,7 +23,7 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
 
   const d = detail ?? project
   const code = d?.code ?? '—'
-  const primaryStatus = d?.statuses?.[0] ?? { variant: 'success' }
+  const statuses = d?.statuses?.length ? d.statuses : [{ variant: 'success' }]
   const surveys = d?.surveys ?? d?.surveyCount ?? 0
   const images = (d?.images ?? [])
     .map(img => img.url ?? img.src ?? img.path ?? img.imageUrl)
@@ -52,9 +52,9 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
         </button>
         <span className="text-ink-400 text-sm">/</span>
         <span className="text-sm font-semibold text-ink-900">{code}</span>
-        <StatusBadge variant={primaryStatus.variant}>
-          {t('status.' + primaryStatus.variant)}
-        </StatusBadge>
+        {statuses.map((s, i) => (
+          <StatusBadge key={i} variant={s.variant}>{t('status.' + s.variant)}</StatusBadge>
+        ))}
       </div>
 
       <Card>
@@ -62,11 +62,11 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
 
           {/* 1 — Project header: code + status + edit button */}
           <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center flex-wrap gap-2 min-w-0">
               <span className="text-lg font-semibold text-ink-900 truncate">{code}</span>
-              <StatusBadge variant={primaryStatus.variant}>
-                {t('status.' + primaryStatus.variant)}
-              </StatusBadge>
+              {statuses.map((s, i) => (
+                <StatusBadge key={i} variant={s.variant}>{t('status.' + s.variant)}</StatusBadge>
+              ))}
             </div>
             <button
               type="button"
