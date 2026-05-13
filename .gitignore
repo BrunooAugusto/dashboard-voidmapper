@@ -7,12 +7,26 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build output
 dist
 dist-ssr
-*.local
 
-# Editor
+# Environment files — never commit secrets
+.env
+.env.*
+!.env.example
+
+# Claude Code internal files
+.claude/
+
+# Uploaded project images — keep directory via .gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Editor / OS
 .vscode/*
 !.vscode/extensions.json
 .idea

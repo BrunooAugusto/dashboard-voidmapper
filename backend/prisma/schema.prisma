@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Models ──────────────────────────────────────────────────────────────────
+
+model User {
+  id              Int          @id @default(autoincrement())
+  email           String       @unique
+  name            String
+  role            String       @default("Usuário")
+  initials        String       @default("US")
+  password        String
+  profileComplete Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  projects    Project[]
+  monitorings Monitoring[]
+  reports     Report[]
+}
+
+model Project {
+  id            Int            @id @default(autoincrement())
+  code          String         @unique
+  statuses      Json           @default("[]")
+  date          DateTime
+  surveyCount   Int            @default(0)
+  metragem      String?
+  fileName      String?
+  notes         String?
+  projectUrl    String?
+  projectLength Float?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  userId        Int?
+  user          User?          @relation(fields: [userId], references: [id])
+  images        ProjectImage[]
+  monitorings   Monitoring[]
+  surveys       Survey[]
+}
+
+model ProjectImage {
+  id        Int      @id @default(autoincrement())
+  url       String
+  isMain    Boolean  @default(false)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Monitoring {
+  id            Int      @id @default(autoincrement())
+  area          String
+  projectName   String
+  frequencyDays Int
+  lastSurvey    DateTime
+  surveyCount   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projectId     Int?
+  project       Project? @relation(fields: [projectId], references: [id])
+  userId        Int?
+  user          User?    @relation(fields: [userId], references: [id])
+}
+
+model Survey {
+  id        Int      @id @default(autoincrement())
+  local     String
+  file      String
+  status    String   @default("success")
+  date      DateTime
+  count     Int      @default(1)
+  metering  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projectId Int?
+  project   Project? @relation(fields: [projectId], references: [id])
+}
+
+model Report {
+  id             Int      @id @default(autoincrement())
+  weekStart      DateTime
+  weekEnd        DateTime
+  newSurveys     Int      @default(0)
+  deformations   Int      @default(0)
+  rehabilitation Int      @default(0)
+  errors         Int      @default(0)
+  observations   String?
+  conclusion     String?
+  createdAt      DateTime @default(now())
+
+  userId         Int?
+  user           User?    @relation(fields: [userId], references: [id])
+}
