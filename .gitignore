@@ -22,6 +22,12 @@ dist-ssr
 # Claude Code internal files
 .claude/
 
+# SQLite local dev database
+backend/*.db
+backend/*.db-journal
+backend/*.db-shm
+backend/*.db-wal
+
 # Uploaded project images — keep directory via .gitkeep
 backend/uploads/*
 !backend/uploads/.gitkeep

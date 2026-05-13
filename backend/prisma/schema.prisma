@@ -3,7 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  // Switch provider back to "postgresql" for production (Railway/Supabase)
+  provider = "sqlite"
 }
 
 // ── Models ──────────────────────────────────────────────────────────────────

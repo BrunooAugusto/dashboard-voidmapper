@@ -3,7 +3,7 @@ import prisma from '../lib/prisma.js'
 export async function getAll({ search, userId } = {}) {
   const where = {
     ...(userId !== undefined && { userId }),
-    ...(search && { code: { contains: search, mode: 'insensitive' } }),
+    ...(search && { code: { contains: search } }),  // mode:'insensitive' is PostgreSQL-only
   }
   return prisma.project.findMany({
     where,
