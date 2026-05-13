@@ -18,22 +18,32 @@ export async function getMetrics(userId) {
 }
 
 export async function getRecentSurveys(userId) {
-  const where = userId !== undefined ? { project: { userId } } : {}
-  const surveys = await prisma.survey.findMany({
+  const since = new Date()
+  since.setDate(since.getDate() - 7)
+  since.setHours(0, 0, 0, 0)
+
+  const where = {
+    createdAt: { gte: since },
+    ...(userId !== undefined && { userId }),
+  }
+
+  const projects = await prisma.project.findMany({
     where,
-    take:    5,
-    orderBy: { date: 'desc' },
-    include: { project: { select: { code: true } } },
+    orderBy: { createdAt: 'desc' },
   })
-  return surveys.map(s => ({
-    id:       s.id,
-    local:    s.local,
-    file:     s.file,
-    status:   { variant: s.status },
-    date:     s.date.toLocaleDateString('pt-BR'),
-    surveys:  s.count,
-    metering: s.metering,
-  }))
+
+  return projects.map(p => {
+    const statuses = Array.isArray(p.statuses) ? p.statuses : []
+    return {
+      id:       p.id,
+      local:    p.code,
+      file:     p.fileName ?? '—',
+      status:   { variant: statuses[0]?.variant ?? 'success' },
+      date:     p.createdAt.toLocaleDateString('pt-BR'),
+      surveys:  p.surveyCount,
+      metering: p.metragem ?? '—',
+    }
+  })
 }
 
 // ── Analytics helpers ──────────────────────────────────────────────────────────
