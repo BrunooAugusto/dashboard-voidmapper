@@ -8,8 +8,8 @@ export default function NavItem({ icon: Icon, label, active = false, onClick }) 
       className={cn(
         'group w-full h-11 px-3 flex items-center gap-3 rounded-lg transition-colors',
         active
-          ? 'bg-brand-500 text-white shadow-sm'
-          : 'text-ink-700 hover:bg-page',
+          ? 'bg-brand-500 text-white dark:shadow-[0_0_20px_rgba(249,115,22,0.35)]'
+          : 'text-ink-700 hover:bg-page hover:text-ink-900',
       )}
     >
       <Icon

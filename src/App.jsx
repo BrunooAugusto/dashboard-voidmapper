@@ -1,4 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocalStorage } from './hooks/useLocalStorage'
+import * as authService from './services/authService'
+import { setUnauthorizedHandler } from './services/api'
 import AppShell from './components/AppShell'
 import KpiSection from './components/KpiSection'
 import MidSection from './components/MidSection'
@@ -7,8 +10,9 @@ import ProjectsPage from './components/ProjectsPage'
 import ProjectDetailsPage from './components/ProjectDetailsPage'
 import CreateProjectPage from './components/CreateProjectPage'
 import EditProjectPage from './components/EditProjectPage'
-import ReportsPage from './components/ReportsPage'
+import WeeklyReportPage from './components/WeeklyReportPage'
 import MonitoringPage from './components/MonitoringPage'
+import MonitoringEditPage from './components/MonitoringEditPage'
 import ProfileEditPage from './components/ProfileEditPage'
 import SettingsPage from './components/SettingsPage'
 import LoginPage from './components/auth/LoginPage'
@@ -16,49 +20,90 @@ import RegisterPage from './components/auth/RegisterPage'
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage'
 import ProfileSetupPage from './components/auth/ProfileSetupPage'
 
-function DashboardPage() {
+const EMPTY_PROFILE = { name: '', role: '', email: '', initials: '', avatarSrc: null }
+
+function DashboardPage({ onNavigate }) {
   return (
-    <div className="space-y-5">
-      <KpiSection />
+    <div className="space-y-5 3xl:space-y-6 4xl:space-y-8">
+      <KpiSection onNavigate={onNavigate} />
       <MidSection />
       <RecentSurveysTable />
     </div>
   )
 }
 
-export default function App() {
-  const [authScreen, setAuthScreen]             = useState('login') // 'login' | 'register' | 'forgot-password'
-  const [isAuthenticated, setIsAuthenticated]   = useState(false)
-  const [isProfileComplete, setIsProfileComplete] = useState(false)
-  const [loginEmail, setLoginEmail]             = useState('')
-  const [userProfile, setUserProfile]           = useState({
-    name: '', role: '', email: '', initials: '', avatarSrc: null,
-  })
+// Strip blob: avatar URLs before persisting (they are session-scoped and don't survive refresh).
+function sanitizeProfile(profile) {
+  return {
+    ...profile,
+    avatarSrc: profile.avatarSrc?.startsWith?.('blob:') ? null : (profile.avatarSrc ?? null),
+  }
+}
 
-  const [activeNav, setActiveNav]           = useState('dashboard')
-  const [selectedProject, setSelectedProject] = useState(null)
+export default function App() {
+  const [authScreen, setAuthScreen]               = useState('login')
+  const [isAuthenticated, setIsAuthenticated]     = useLocalStorage('voidmapper_auth', false)
+  const [isProfileComplete, setIsProfileComplete] = useLocalStorage('voidmapper_onboarding_complete', false)
+  const [userProfile, setUserProfileRaw]          = useLocalStorage('voidmapper_profile', EMPTY_PROFILE)
+
+  // Register 401 handler + verify token on startup
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      authService.logout()
+      setIsAuthenticated(false)
+      setIsProfileComplete(false)
+      setUserProfileRaw(EMPTY_PROFILE)
+      setAuthScreen('login')
+    })
+    const token = localStorage.getItem('voidmapper_token')
+    if (token && isAuthenticated) {
+      authService.getMe()
+        .then((user) => {
+          setUserProfile({ name: user.name, role: user.role, email: user.email, initials: user.initials, avatarSrc: null })
+        })
+        .catch(() => { /* 401 handled via handler; other errors ignored */ })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [activeNav, setActiveNav]                   = useState('dashboard')
+  const [selectedProject, setSelectedProject]       = useState(null)
+  const [editingMonitoringRow, setEditingMonitoringRow] = useState(null)
+  const [projectsKey, setProjectsKey]               = useState(0)
+
+  function setUserProfile(profile) {
+    setUserProfileRaw(sanitizeProfile(profile))
+  }
 
   // ── Auth handlers ──────────────────────────────────────────────────────────
 
-  function handleLogin({ email }) {
-    // Existing user: derive a minimal profile from the email and skip profile setup.
-    const prefix   = email.split('@')[0]
-    const name     = prefix.charAt(0).toUpperCase() + prefix.slice(1)
-    const initials = prefix.slice(0, 2).toUpperCase()
-    setUserProfile({ name, role: 'Usuário', email, initials, avatarSrc: null })
+  async function handleLogin({ email, password }) {
+    const user = await authService.login({ email, password })
+    setUserProfile({ name: user.name, role: user.role, email: user.email, initials: user.initials, avatarSrc: null })
     setIsAuthenticated(true)
-    setIsProfileComplete(true)
+    setIsProfileComplete(user.profileComplete ?? false)
   }
 
-  function handleRegister({ email }) {
-    // New user: authenticate but leave isProfileComplete = false so ProfileSetupPage renders.
-    setLoginEmail(email)
+  async function handleRegister({ email, name, password }) {
+    const user = await authService.register({ email, name, password })
+    setUserProfile({ name: user.name, role: user.role, email: user.email, initials: user.initials, avatarSrc: null })
     setIsAuthenticated(true)
+    setIsProfileComplete(false)
   }
 
-  function handleProfileComplete(profile) {
+  async function handleProfileComplete(profile) {
+    try {
+      await authService.updateProfile({ ...profile, profileComplete: true })
+    } catch { }
     setUserProfile(profile)
     setIsProfileComplete(true)
+  }
+
+  function handleLogout() {
+    authService.logout()
+    setIsAuthenticated(false)
+    setIsProfileComplete(false)
+    setUserProfileRaw(EMPTY_PROFILE)
+    setAuthScreen('login')
   }
 
   // ── Auth gates ─────────────────────────────────────────────────────────────
@@ -91,7 +136,7 @@ export default function App() {
   if (!isProfileComplete) {
     return (
       <ProfileSetupPage
-        initialEmail={loginEmail}
+        initialEmail={userProfile.email}
         onComplete={handleProfileComplete}
       />
     )
@@ -103,6 +148,9 @@ export default function App() {
     setActiveNav(id)
     if (id !== 'project-details' && id !== 'edit-project') {
       setSelectedProject(null)
+    }
+    if (id !== 'monitorados') {
+      setEditingMonitoringRow(null)
     }
   }
 
@@ -121,7 +169,7 @@ export default function App() {
       return (
         <EditProjectPage
           project={selectedProject}
-          onBack={() => setActiveNav('project-details')}
+          onBack={() => { setProjectsKey(k => k + 1); setActiveNav('project-details') }}
         />
       )
     }
@@ -137,6 +185,7 @@ export default function App() {
     if (activeNav === 'projetos') {
       return (
         <ProjectsPage
+          key={projectsKey}
           onSelectProject={handleSelectProject}
           onNavigate={handleNavigate}
         />
@@ -144,17 +193,29 @@ export default function App() {
     }
     if (activeNav === 'novo-projeto') {
       return (
-        <CreateProjectPage onBack={() => handleNavigate('projetos')} />
+        <CreateProjectPage onBack={() => { setProjectsKey(k => k + 1); handleNavigate('projetos') }} />
       )
     }
-    if (activeNav === 'relatorio') {
+    if (activeNav === 'relatorio-semanal') {
       return (
-        <ReportsPage onBack={() => handleNavigate('dashboard')} />
+        <WeeklyReportPage onBack={() => handleNavigate('dashboard')} user={userProfile} />
       )
     }
     if (activeNav === 'monitorados') {
+      if (editingMonitoringRow) {
+        return (
+          <MonitoringEditPage
+            row={editingMonitoringRow}
+            onBack={() => setEditingMonitoringRow(null)}
+          />
+        )
+      }
       return (
-        <MonitoringPage onBack={() => handleNavigate('dashboard')} />
+        <MonitoringPage
+          onBack={() => handleNavigate('dashboard')}
+          onSelectRow={(row) => setEditingMonitoringRow(row)}
+          onNew={() => setEditingMonitoringRow({})}
+        />
       )
     }
     if (activeNav === 'settings') {
@@ -163,6 +224,7 @@ export default function App() {
           user={userProfile}
           onSave={setUserProfile}
           onNavigate={handleNavigate}
+          onLogout={handleLogout}
         />
       )
     }
@@ -175,7 +237,7 @@ export default function App() {
         />
       )
     }
-    return <DashboardPage />
+    return <DashboardPage onNavigate={handleNavigate} />
   }
 
   return (

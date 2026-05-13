@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 @theme {
+  /* Ultra-wide breakpoints */
+  --breakpoint-3xl: 1920px;
+  --breakpoint-4xl: 2560px;
+  --breakpoint-5xl: 3440px;
+
   /* Brand — orange accent */
   --color-brand-50: #FFF7ED;
   --color-brand-100: #FFEDD5;
@@ -12,12 +17,12 @@
   --color-brand-700: #C2410C;
 
   /* Surfaces */
-  --color-page: #F5F6F8;
+  --color-page: #F6F6F7;
   --color-surface: #FFFFFF;
   --color-sidebar: #FFFFFF;
 
   /* Borders & dividers */
-  --color-border-soft: #EEF0F3;
+  --color-border-soft: #E7E7E8;
   --color-border: #E5E7EB;
 
   /* Text */
@@ -49,25 +54,40 @@
 
 /* ── Dark mode ──────────────────────────────────────────────────────────── */
 .dark {
-  --color-page:        #0F172A;
-  --color-surface:     #1E293B;
-  --color-sidebar:     #1E293B;
-  --color-border-soft: #334155;
-  --color-border:      #475569;
-  --color-ink-900:     #F1F5F9;
-  --color-ink-700:     #CBD5E1;
-  --color-ink-500:     #94A3B8;
-  --color-ink-400:     #64748B;
-  --color-ink-300:     #475569;
-  --color-input-bg:    #1E293B;
-  --color-success-bg:  #14532D;
-  --color-success-fg:  #4ADE80;
-  --color-danger-bg:   #7F1D1D;
-  --color-danger-fg:   #F87171;
-  --color-warning-bg:  #78350F;
-  --color-warning-fg:  #FCD34D;
-  --color-info-bg:     #1E1B4B;
-  --color-info-fg:     #818CF8;
+  /* Surfaces — deep navy hierarchy: sidebar < page < surface */
+  --color-sidebar:     #050C17;
+  --color-page:        #08111F;
+  --color-surface:     #0D1C32;
+
+  /* Borders — ultra-subtle, ~white/8 on deep navy */
+  --color-border-soft: #1B2E46;
+  --color-border:      #263D5A;
+
+  /* Text — cool-white titles, blue-tinted muted */
+  --color-ink-900:     #ECF3FF;
+  --color-ink-700:     #B4CCDE;
+  --color-ink-500:     #6B8FAF;
+  --color-ink-400:     #476282;
+  --color-ink-300:     #2C4260;
+
+  /* Inputs */
+  --color-input-bg:    #0D1C32;
+
+  /* Status — saturated on dark bg */
+  --color-success-bg:  #062818;
+  --color-success-fg:  #34D474;
+  --color-danger-bg:   #2A0808;
+  --color-danger-fg:   #FF6B6B;
+  --color-warning-bg:  #2A1400;
+  --color-warning-fg:  #FFA930;
+  --color-info-bg:     #0A1240;
+  --color-info-fg:     #7B94FF;
+}
+
+/* ── Global shadow kill-switch (light mode only) ────────────────────────── */
+:root:not(.dark) * {
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
 }
 
 html, body, #root {
@@ -80,4 +100,98 @@ body {
   color: var(--color-ink-900);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Ultra-wide responsive container ───────────────────────────────────────
+   Replaces max-w-[1520px] mx-auto px-6 in AppShell.
+   Content expands proportionally from 1920 → 2560 → 3440px instead of
+   staying locked to a 1520px column with massive side gutters.
+   ─────────────────────────────────────────────────────────────────────── */
+.uw-container {
+  width: 100%;
+  max-width: 1520px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .uw-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+/* 1920px – standard wide desktop: remove max-w cap, scale padding */
+@media (min-width: 1920px) {
+  .uw-container {
+    max-width: none;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+/* 2560px – 2K QHD: larger proportional padding */
+@media (min-width: 2560px) {
+  .uw-container {
+    padding-left: 4rem;
+    padding-right: 4rem;
+  }
+}
+
+/* 3440px – ultrawide: even more breathing room */
+@media (min-width: 3440px) {
+  .uw-container {
+    padding-left: 6rem;
+    padding-right: 6rem;
+  }
+}
+
+/* ── Print / PDF export ─────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 15mm;
+  }
+
+  /* Kill the app shell constraints so the report can flow naturally */
+  html, body, #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Hide chrome: sidebar, topbar, action buttons, breadcrumbs */
+  aside,
+  header,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Let the main content area fill the page */
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* The report document itself */
+  #vm-report {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Avoid splitting any labelled section across pages */
+  .report-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Avoid orphaned headings */
+  h1, h2, h3, h4 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
 }

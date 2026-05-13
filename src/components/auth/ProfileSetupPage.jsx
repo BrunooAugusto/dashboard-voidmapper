@@ -2,12 +2,14 @@ import { useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import AuthCard from './AuthCard'
 import AuthInput from './AuthInput'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
+  const { t } = useLanguage()
   const [form, setForm] = useState({
-    name: '',
-    email: initialEmail,
-    role: '',
+    name:     '',
+    email:    initialEmail,
+    role:     '',
     initials: '',
   })
   const [avatarSrc, setAvatarSrc] = useState(null)
@@ -54,10 +56,10 @@ export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
       {/* Heading */}
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-ink-900 leading-tight">
-          Complete seu perfil
+          {t('auth.setup.title')}
         </h2>
         <p className="text-sm text-ink-500 mt-1.5">
-          Antes de continuar, configure suas informações de usuário.
+          {t('auth.setup.subtitle')}
         </p>
       </div>
 
@@ -77,7 +79,7 @@ export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
             </div>
             <button
               type="button"
-              title="Alterar foto"
+              title={t('auth.setup.addPhoto')}
               onClick={() => fileRef.current?.click()}
               className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
             >
@@ -91,9 +93,9 @@ export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
               onClick={() => fileRef.current?.click()}
               className="text-sm font-medium text-brand-500 hover:text-brand-600 transition-colors"
             >
-              Adicionar foto de perfil
+              {t('auth.setup.addPhoto')}
             </button>
-            <p className="text-xs text-ink-400 mt-0.5">PNG, JPG ou WEBP. Opcional.</p>
+            <p className="text-xs text-ink-400 mt-0.5">{t('auth.setup.photoHint')}</p>
           </div>
 
           <input
@@ -110,30 +112,30 @@ export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
         {/* Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <AuthInput
-            label="Nome"
-            placeholder="Seu nome completo"
+            label={t('auth.setup.name')}
+            placeholder={t('auth.setup.namePlaceholder')}
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             required
           />
           <AuthInput
-            label="Email"
+            label={t('auth.setup.email')}
             type="email"
-            placeholder="seu@email.com"
+            placeholder={t('auth.setup.emailPlaceholder')}
             value={form.email}
             onChange={(e) => set('email', e.target.value)}
             required
           />
           <AuthInput
-            label="Cargo / Função"
-            placeholder="Ex: Engenheiro de Minas"
+            label={t('auth.setup.role')}
+            placeholder={t('auth.setup.rolePlaceholder')}
             value={form.role}
             onChange={(e) => set('role', e.target.value)}
             required
           />
           <AuthInput
-            label="Iniciais do Avatar"
-            placeholder="Ex: BA"
+            label={t('auth.setup.initials')}
+            placeholder={t('auth.setup.initialsPlaceholder')}
             value={form.initials}
             maxLength={2}
             onChange={(e) => set('initials', e.target.value.toUpperCase())}
@@ -144,7 +146,7 @@ export default function ProfileSetupPage({ initialEmail = '', onComplete }) {
           type="submit"
           className="h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors"
         >
-          Continuar para Dashboard
+          {t('auth.setup.submit')}
         </button>
 
       </form>

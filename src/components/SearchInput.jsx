@@ -14,7 +14,7 @@ export default function SearchInput({ placeholder, value, onChange }) {
         value={value}
         onChange={onChange}
         placeholder={placeholder ?? t('common.search')}
-        className="h-[43px] w-full pl-11 pr-4 rounded-full bg-page border border-border-soft text-sm text-ink-700 placeholder:text-ink-400 outline-none focus:border-brand-300 focus:bg-surface transition-colors"
+        className="h-11 w-full pl-11 pr-4 rounded-full bg-page border border-border-soft text-sm text-ink-700 placeholder:text-ink-400 outline-none focus:border-brand-300 focus:bg-surface transition-colors"
       />
     </div>
   )

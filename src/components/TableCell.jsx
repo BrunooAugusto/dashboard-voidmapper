@@ -19,7 +19,7 @@ export default function TableCell({
   return (
     <Tag
       className={cn(
-        'px-6 align-middle',
+        'px-4 align-middle',
         ALIGN[align],
         header
           ? 'text-sm font-medium text-ink-500'

@@ -6,7 +6,7 @@ export default function ProjectCard({ project, onClick }) {
   const label = project.surveys === 1 ? t('projects.survey') : t('projects.surveys')
 
   return (
-    <div onClick={onClick} className="border border-border-soft rounded-[10px] p-4 flex flex-col gap-[10px] bg-surface hover:shadow-sm hover:border-border transition-all cursor-pointer">
+    <div onClick={onClick} className="border border-border-soft rounded-[16px] p-4 flex flex-col gap-[10px] bg-surface hover:border-border transition-all cursor-pointer">
       <div className="flex flex-wrap gap-[10px]">
         {project.statuses.map((s, i) => (
           <StatusBadge key={i} variant={s.variant} size="md">

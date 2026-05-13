@@ -1,16 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '../lib/cn'
 import Card from './Card'
 import FilterButton from './FilterButton'
 import ProjectCard from './ProjectCard'
 import SearchInput from './SearchInput'
-import { PROJECTS } from '../data/dashboard'
+import { getProjects } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 
 export default function ProjectsPage({ onSelectProject, onNavigate }) {
   const { t } = useLanguage()
-  const [search, setSearch] = useState('')
+  const [search, setSearch]           = useState('')
   const [activeFilter, setActiveFilter] = useState(null)
+  const [projects, setProjects]       = useState([])
+
+  useEffect(() => {
+    getProjects().then(setProjects).catch(console.error)
+  }, [])
 
   const FILTER_CHIPS = [
     { key: 'danger',  label: t('projects.filterDeformations')   },
@@ -18,7 +23,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
     { key: 'info',    label: t('projects.filterErrors')         },
   ]
 
-  const filtered = PROJECTS.filter((p) => {
+  const filtered = projects.filter((p) => {
     const matchesSearch = p.code.toLowerCase().includes(search.toLowerCase())
     const matchesFilter =
       !activeFilter || p.statuses.some((s) => s.variant === activeFilter)
@@ -62,7 +67,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
             className={cn(
               'h-[26px] inline-flex items-center px-3 rounded-md border text-[12px] font-medium transition-colors',
               activeFilter === f.key
-                ? 'border-brand-500 bg-brand-50 text-brand-600'
+                ? 'border-brand-500 bg-brand-500/10 text-brand-500'
                 : 'border-border-soft bg-surface text-ink-700 hover:bg-page',
             )}
           >
@@ -74,7 +79,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
       {/* Projects grid */}
       <Card>
         {filtered.length > 0 ? (
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 4xl:grid-cols-4 5xl:grid-cols-5 gap-4 3xl:gap-5 4xl:gap-6">
             {filtered.map((p) => (
               <ProjectCard key={p.id} project={p} onClick={() => onSelectProject?.(p)} />
             ))}

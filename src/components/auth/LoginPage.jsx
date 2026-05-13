@@ -1,14 +1,26 @@
 import { useState } from 'react'
 import AuthCard from './AuthCard'
 import AuthInput from './AuthInput'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPassword }) {
+  const { t } = useLanguage()
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    onLogin({ email })
+    setError('')
+    setLoading(true)
+    try {
+      await onLogin({ email, password })
+    } catch (err) {
+      setError(err.message || 'Falha no login')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -27,17 +39,17 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
       {/* Heading */}
       <div className="mb-7">
         <h2 className="text-2xl font-bold text-ink-900 leading-tight">
-          Bem-vindo de volta.
+          {t('auth.login.title')}
         </h2>
         <p className="text-sm text-ink-500 mt-1.5">
-          Insira suas credenciais para continuar.
+          {t('auth.login.subtitle')}
         </p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthInput
-          label="Email"
+          label={t('auth.login.email')}
           type="email"
           placeholder="seu@email.com"
           value={email}
@@ -46,10 +58,9 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
           required
         />
 
-        {/* Password + forgot link */}
         <div className="flex flex-col gap-1.5">
           <AuthInput
-            label="Senha"
+            label={t('auth.login.password')}
             type="password"
             placeholder="••••••••"
             value={password}
@@ -63,40 +74,45 @@ export default function LoginPage({ onLogin, onGoToRegister, onGoToForgotPasswor
               onClick={onGoToForgotPassword}
               className="text-xs text-ink-500 hover:text-brand-500 transition-colors"
             >
-              Esqueci minha senha
+              {t('auth.login.forgot')}
             </button>
           </div>
         </div>
 
+        {error && (
+          <p className="text-xs font-medium text-danger-fg pl-0.5">{error}</p>
+        )}
+
         <button
           type="submit"
-          className="mt-1 h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors"
+          disabled={loading}
+          className="mt-1 h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Entrar
+          {loading ? '...' : t('auth.login.submit')}
         </button>
       </form>
 
       {/* Divider */}
       <div className="mt-6 flex items-center gap-3">
         <div className="flex-1 h-px bg-border-soft" />
-        <span className="text-xs text-ink-400 shrink-0">ou</span>
+        <span className="text-xs text-ink-400 shrink-0">{t('auth.login.or')}</span>
         <div className="flex-1 h-px bg-border-soft" />
       </div>
 
       {/* Register link */}
       <div className="mt-5 text-center">
-        <span className="text-sm text-ink-500">Não tem uma conta? </span>
+        <span className="text-sm text-ink-500">{t('auth.login.noAccount')} </span>
         <button
           type="button"
           onClick={onGoToRegister}
           className="text-sm font-semibold text-brand-500 hover:text-brand-600 transition-colors"
         >
-          Criar conta
+          {t('auth.login.createAccount')}
         </button>
       </div>
 
       <p className="text-xs text-ink-300 text-center mt-6">
-        © {new Date().getFullYear()} Void Mapper. Todos os direitos reservados.
+        {t('auth.copyright', { year: new Date().getFullYear() })}
       </p>
 
     </AuthCard>

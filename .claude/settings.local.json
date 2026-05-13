@@ -18,7 +18,11 @@
       "Bash(hooks)",
       "Bash(utils\" || echo \"Checking with find\")",
       "Bash(cd '/mnt/c/Users/Bruno/Desktop/Dashboard-VoidMapper/src' && find . -maxdepth 1 -type d | sort)",
-      "Read(//mnt/c/Users/Bruno/Desktop/Dashboard-VoidMapper/**)"
+      "Read(//mnt/c/Users/Bruno/Desktop/Dashboard-VoidMapper/**)",
+      "Bash(Get-Content \"c:\\\\Users\\\\Bruno\\\\Desktop\\\\Dashboard-VoidMapper\\\\src\\\\components\\\\auth\\\\LoginPage.jsx\")",
+      "Bash(Select-Object -First 3)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5174)"
     ]
   }
 }

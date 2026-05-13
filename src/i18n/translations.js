@@ -5,8 +5,8 @@ const t = {
     'nav.dashboard':   'Dashboard',
     'nav.projects':    'Projetos',
     'nav.newProject':  'Novo Projeto',
-    'nav.reports':     'Relatório',
-    'nav.monitoring':  'Monitorados',
+    'nav.monitoring':      'Monitorados',
+    'nav.weeklyReport':    'Relatório Semanal',
     'nav.support':     'Suporte',
     'nav.settings':    'Configurações',
 
@@ -78,15 +78,25 @@ const t = {
     'kpi.newProject':     '+ Novo Projeto',
 
     // ── Chart ───────────────────────────────────────────────────────────────
-    'chart.title':  'Levantamentos Semanais',
-    'chart.filter': 'Filtrar por',
+    'chart.title':    'Análise de Levantamentos',
+    'chart.subtitle': 'Acompanhe levantamentos por semana, mês ou ano',
+    'chart.tab.weekly':    'Semanal',
+    'chart.tab.monthly':   'Mensal',
+    'chart.tab.annual':    'Anual',
+    'chart.tooltip.total':          'Total',
+    'chart.tooltip.approved':       'Aprovados',
+    'chart.tooltip.deformations':   'Deformações',
+    'chart.tooltip.rehabilitating': 'Reabilitando',
+    'chart.tooltip.errors':         'Erros',
 
     // ── Rehabilitated projects card ─────────────────────────────────────────
     'rehab.title':       'Projetos Reabilitados',
     'rehab.viewProject': 'Ver Projeto',
+    'rehab.empty':       'Nenhum projeto reabilitado.',
 
     // ── Recent surveys table ────────────────────────────────────────────────
     'surveys.title':     'Levantamentos nos últimos 7 dias',
+    'surveys.empty':     'Nenhum levantamento registrado.',
     'surveys.local':     'Local',
     'surveys.file':      'Nome do Arquivo',
     'surveys.status':    'Status',
@@ -117,6 +127,11 @@ const t = {
     'detail.detonationAreas': 'Áreas de Detonação',
     'detail.mapTitle':        'Mapa do Levantamento',
     'detail.areaTitle':       'Metragem do Levantamento',
+    'detail.gallery':         'Galeria do Projeto',
+    'detail.prevImage':       'Imagem anterior',
+    'detail.nextImage':       'Próxima imagem',
+    'detail.noImages':        'Nenhuma imagem adicionada',
+    'detail.noProjectLink':   'Link não disponível',
 
     // ── Project form (create + edit) ────────────────────────────────────────
     'form.back':              'Projetos',
@@ -162,15 +177,31 @@ const t = {
     'reports.viewDeformation': 'Ver Deformação',
 
     // ── Monitoring page ─────────────────────────────────────────────────────
-    'monitoring.back':          'Dashboard',
-    'monitoring.breadcrumb':    'Monitorados',
-    'monitoring.tableTitle':    'Gerenciamento_Levantamento',
-    'monitoring.area':          'Área',
-    'monitoring.project':       'Projeto',
-    'monitoring.frequency':     'Frequência (em dias)',
-    'monitoring.lastSurvey':    'Último Levantamento',
-    'monitoring.surveyCount':   'Nº de Levantamentos',
-    'monitoring.daysUntilNext': 'Dias para o Próximo Levantamento',
+    'monitoring.back':              'Dashboard',
+    'monitoring.breadcrumb':        'Monitorados',
+    'monitoring.empty':             'Nenhum monitoramento cadastrado.',
+    'monitoring.newButton':         'Novo Monitoramento',
+    'monitoring.newBreadcrumb':     'Novo Monitoramento',
+    'monitoring.editBreadcrumb':    'Editar Monitoramento',
+    'monitoring.tableTitle':        'Gerenciamento_Levantamento',
+    'monitoring.area':              'Área',
+    'monitoring.project':           'Projeto',
+    'monitoring.frequency':         'Frequência (em dias)',
+    'monitoring.lastSurvey':        'Último Levantamento',
+    'monitoring.surveyCount':       'Nº de Levantamentos',
+    'monitoring.daysUntilNext':     'Dias para o Próximo Levantamento',
+    'monitoring.nextInspection':    'Próxima Inspeção',
+    'monitoring.remainingDays':     'Dias Restantes',
+    'monitoring.statusSuccess':     'Em dia',
+    'monitoring.statusWarning':     'Vence em breve',
+    'monitoring.statusDanger':      'Vencido',
+    'monitoring.statusNeutral':     'Não agendado',
+    'monitoring.notScheduled':      'Informe a data e a frequência',
+    'monitoring.dueToday':          'Vence hoje',
+    'monitoring.daysSuffix':        'dias',
+    'monitoring.daysOverdue':       'dias em atraso',
+    'monitoring.daysLeft':          'dias restantes',
+    'monitoring.autoCalc':          'Calculado automaticamente',
 
     // ── Profile edit ────────────────────────────────────────────────────────
     'profile.back':               'Dashboard',
@@ -243,6 +274,19 @@ const t = {
 
     'settings.save':   'Salvar Alterações',
     'settings.cancel': 'Cancelar',
+    'settings.logout': 'Sair',
+
+    // ── Form additions ──────────────────────────────────────────────────────────
+    'form.projectLength':          'Metragem do Projeto',
+    'form.projectLengthPlaceholder':'Ex: 296',
+    'form.measurementImage':       'Imagem da Metragem',
+    'form.addMeasurementImage':    'Adicionar imagem da metragem',
+    'form.changeMeasurementImage': 'Alterar imagem da metragem',
+    'form.imagesLabel':            'Imagens do Projeto',
+    'form.addTile':                'Adicionar',
+    'form.replaceImage':           'Substituir imagem',
+    'form.removeImage':            'Remover imagem',
+    'form.noImagesHint':           'Nenhuma imagem adicionada. Clique em "Adicionar Imagem" para começar.',
   },
 
   en: {
@@ -251,8 +295,8 @@ const t = {
     'nav.dashboard':   'Dashboard',
     'nav.projects':    'Projects',
     'nav.newProject':  'New Project',
-    'nav.reports':     'Reports',
-    'nav.monitoring':  'Monitoring',
+    'nav.monitoring':      'Monitoring',
+    'nav.weeklyReport':    'Weekly Report',
     'nav.support':     'Support',
     'nav.settings':    'Settings',
 
@@ -324,15 +368,25 @@ const t = {
     'kpi.newProject':     '+ New Project',
 
     // ── Chart ───────────────────────────────────────────────────────────────
-    'chart.title':  'Weekly Surveys',
-    'chart.filter': 'Filter by',
+    'chart.title':    'Survey Analytics',
+    'chart.subtitle': 'Track surveys by week, month or year',
+    'chart.tab.weekly':    'Weekly',
+    'chart.tab.monthly':   'Monthly',
+    'chart.tab.annual':    'Annual',
+    'chart.tooltip.total':          'Total',
+    'chart.tooltip.approved':       'Approved',
+    'chart.tooltip.deformations':   'Deformations',
+    'chart.tooltip.rehabilitating': 'Rehabilitating',
+    'chart.tooltip.errors':         'Errors',
 
     // ── Rehabilitated projects card ─────────────────────────────────────────
     'rehab.title':       'Rehabilitated Projects',
     'rehab.viewProject': 'View Project',
+    'rehab.empty':       'No rehabilitated projects.',
 
     // ── Recent surveys table ────────────────────────────────────────────────
     'surveys.title':    'Surveys in the last 7 days',
+    'surveys.empty':    'No surveys recorded.',
     'surveys.local':    'Location',
     'surveys.file':     'File Name',
     'surveys.status':   'Status',
@@ -357,12 +411,17 @@ const t = {
     'detail.fileName':        'File Name',
     'detail.lastSurvey':      'Last Survey',
     'detail.surveysCount':    'Surveys',
-    'detail.totalArea':       'Total Area',
+    'detail.totalArea':       'Total Length',
     'detail.notes':           'Scan Notes',
     'detail.projectLink':     'Project Link',
     'detail.detonationAreas': 'Detonation Areas',
     'detail.mapTitle':        'Survey Map',
-    'detail.areaTitle':       'Survey Area',
+    'detail.areaTitle':       'Survey Length',
+    'detail.gallery':         'Project Gallery',
+    'detail.prevImage':       'Previous image',
+    'detail.nextImage':       'Next image',
+    'detail.noImages':        'No images added',
+    'detail.noProjectLink':   'Link unavailable',
 
     // ── Project form (create + edit) ────────────────────────────────────────
     'form.back':           'Projects',
@@ -408,15 +467,31 @@ const t = {
     'reports.viewDeformation': 'View Deformation',
 
     // ── Monitoring page ─────────────────────────────────────────────────────
-    'monitoring.back':          'Dashboard',
-    'monitoring.breadcrumb':    'Monitoring',
-    'monitoring.tableTitle':    'Survey_Management',
-    'monitoring.area':          'Area',
-    'monitoring.project':       'Project',
-    'monitoring.frequency':     'Frequency (days)',
-    'monitoring.lastSurvey':    'Last Survey',
-    'monitoring.surveyCount':   'No. of Surveys',
-    'monitoring.daysUntilNext': 'Days Until Next Survey',
+    'monitoring.back':              'Dashboard',
+    'monitoring.breadcrumb':        'Monitoring',
+    'monitoring.editBreadcrumb':    'Edit Monitoring',
+    'monitoring.tableTitle':        'Survey_Management',
+    'monitoring.area':              'Area',
+    'monitoring.project':           'Project',
+    'monitoring.frequency':         'Frequency (days)',
+    'monitoring.lastSurvey':        'Last Inspection',
+    'monitoring.surveyCount':       'No. of Inspections',
+    'monitoring.daysUntilNext':     'Days Until Next Survey',
+    'monitoring.empty':             'No monitoring items registered.',
+    'monitoring.newButton':         'New Monitoring',
+    'monitoring.newBreadcrumb':     'New Monitoring',
+    'monitoring.nextInspection':    'Next Inspection',
+    'monitoring.remainingDays':     'Remaining Days',
+    'monitoring.statusSuccess':     'On Track',
+    'monitoring.statusWarning':     'Due Soon',
+    'monitoring.statusDanger':      'Overdue',
+    'monitoring.statusNeutral':     'Not Scheduled',
+    'monitoring.notScheduled':      'Enter date and frequency',
+    'monitoring.dueToday':          'Due today',
+    'monitoring.daysSuffix':        'days',
+    'monitoring.daysOverdue':       'days overdue',
+    'monitoring.daysLeft':          'days remaining',
+    'monitoring.autoCalc':          'Auto-calculated',
 
     // ── Profile edit ────────────────────────────────────────────────────────
     'profile.back':               'Dashboard',
@@ -489,6 +564,19 @@ const t = {
 
     'settings.save':   'Save Changes',
     'settings.cancel': 'Cancel',
+    'settings.logout': 'Sign out',
+
+    // ── Form additions ──────────────────────────────────────────────────────────
+    'form.projectLength':          'Project Length',
+    'form.projectLengthPlaceholder':'e.g. 296',
+    'form.measurementImage':       'Measurement Image',
+    'form.addMeasurementImage':    'Add measurement image',
+    'form.changeMeasurementImage': 'Change measurement image',
+    'form.imagesLabel':            'Project Images',
+    'form.addTile':                'Add',
+    'form.replaceImage':           'Replace image',
+    'form.removeImage':            'Remove image',
+    'form.noImagesHint':           'No images added. Click "Add Image" to get started.',
   },
 }
 

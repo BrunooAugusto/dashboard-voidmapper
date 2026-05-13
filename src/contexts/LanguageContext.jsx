@@ -4,7 +4,14 @@ import translations from '../i18n/translations'
 const LanguageContext = createContext(null)
 
 export function LanguageProvider({ children }) {
-  const [lang, setLang] = useState('pt-BR')
+  const [lang, setLangState] = useState(() => {
+    try { return localStorage.getItem('voidmapper_language') || 'pt-BR' } catch { return 'pt-BR' }
+  })
+
+  function setLang(next) {
+    setLangState(next)
+    try { localStorage.setItem('voidmapper_language', next) } catch {}
+  }
 
   function t(key, vars = {}) {
     const map  = translations[lang] ?? translations['pt-BR']

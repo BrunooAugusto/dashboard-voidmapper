@@ -1,11 +1,35 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { Upload, X, FileImage } from 'lucide-react'
 import { useLanguage } from '../contexts/LanguageContext'
 
 export default function UploadZone({ files = [], onFilesChange }) {
-  const inputRef = useRef(null)
+  const inputRef  = useRef(null)
+  const urlCache  = useRef(new Map())
   const [dragging, setDragging] = useState(false)
   const { t } = useLanguage()
+
+  // Keep URL cache in sync with files — create once per file, revoke on removal
+  useEffect(() => {
+    const currentSet = new Set(files)
+    for (const [file, url] of urlCache.current.entries()) {
+      if (!currentSet.has(file)) {
+        URL.revokeObjectURL(url)
+        urlCache.current.delete(file)
+      }
+    }
+    for (const file of files) {
+      if (!urlCache.current.has(file)) {
+        urlCache.current.set(file, URL.createObjectURL(file))
+      }
+    }
+  }, [files])
+
+  // Revoke all on unmount
+  useEffect(() => {
+    return () => {
+      for (const url of urlCache.current.values()) URL.revokeObjectURL(url)
+    }
+  }, [])
 
   function handleDrop(e) {
     e.preventDefault()
@@ -33,13 +57,13 @@ export default function UploadZone({ files = [], onFilesChange }) {
       onDrop={handleDrop}
       className={`h-full min-h-[480px] rounded-[10px] border-2 border-dashed flex flex-col items-center justify-center gap-4 p-6 transition-colors ${
         dragging
-          ? 'border-brand-400 bg-brand-50'
+          ? 'border-brand-400 bg-brand-500/10'
           : 'border-border bg-input-bg'
       }`}
     >
       {files.length === 0 ? (
         <>
-          <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center shadow-sm">
+          <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center border border-border-soft">
             <Upload className="w-6 h-6 text-ink-400" strokeWidth={1.5} />
           </div>
           <div className="text-center">
@@ -63,7 +87,7 @@ export default function UploadZone({ files = [], onFilesChange }) {
                 className="relative group bg-surface rounded-lg border border-border-soft overflow-hidden aspect-square flex items-center justify-center"
               >
                 <img
-                  src={URL.createObjectURL(file)}
+                  src={urlCache.current.get(file) ?? ''}
                   alt={file.name}
                   className="w-full h-full object-cover"
                 />

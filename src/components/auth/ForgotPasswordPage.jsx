@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { CheckCircle2, ArrowLeft } from 'lucide-react'
 import AuthCard from './AuthCard'
 import AuthInput from './AuthInput'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 export default function ForgotPasswordPage({ onGoToLogin }) {
-  const [email, setEmail]       = useState('')
+  const { t } = useLanguage()
+  const [email, setEmail]         = useState('')
   const [submitted, setSubmitted] = useState(false)
 
   function handleSubmit(e) {
@@ -27,7 +29,7 @@ export default function ForgotPasswordPage({ onGoToLogin }) {
 
       {submitted ? (
 
-        /* ── Success state ── */
+        /* Success state */
         <div className="flex flex-col items-center text-center gap-5">
           <div className="w-16 h-16 rounded-full bg-success-bg flex items-center justify-center">
             <CheckCircle2 className="w-8 h-8 text-success-fg" strokeWidth={1.5} />
@@ -35,12 +37,12 @@ export default function ForgotPasswordPage({ onGoToLogin }) {
 
           <div>
             <h2 className="text-xl font-bold text-ink-900 leading-tight">
-              Verifique seu e-mail
+              {t('auth.forgot.successTitle')}
             </h2>
             <p className="text-sm text-ink-500 mt-2 leading-relaxed">
-              Enviamos as instruções para o seu e-mail.
+              {t('auth.forgot.successMessage')}
               <br />
-              Verifique também a caixa de spam.
+              {t('auth.forgot.successNote')}
             </p>
           </div>
 
@@ -49,26 +51,26 @@ export default function ForgotPasswordPage({ onGoToLogin }) {
             onClick={onGoToLogin}
             className="mt-1 h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors"
           >
-            Voltar para login
+            {t('auth.forgot.backButton')}
           </button>
         </div>
 
       ) : (
 
-        /* ── Form state ── */
+        /* Form state */
         <>
           <div className="mb-7">
-            <h2 className="text-2xl font-bold text-ink-900 leading-tight">Recuperar senha</h2>
+            <h2 className="text-2xl font-bold text-ink-900 leading-tight">{t('auth.forgot.title')}</h2>
             <p className="text-sm text-ink-500 mt-1.5">
-              Insira seu e-mail e enviaremos um link de recuperação.
+              {t('auth.forgot.subtitle')}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <AuthInput
-              label="Email"
+              label={t('auth.forgot.email')}
               type="email"
-              placeholder="seu@email.com"
+              placeholder={t('auth.forgot.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -78,7 +80,7 @@ export default function ForgotPasswordPage({ onGoToLogin }) {
               type="submit"
               className="mt-2 h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors"
             >
-              Enviar link de recuperação
+              {t('auth.forgot.submit')}
             </button>
           </form>
 
@@ -88,14 +90,14 @@ export default function ForgotPasswordPage({ onGoToLogin }) {
             className="mt-5 w-full flex items-center justify-center gap-1.5 text-sm text-ink-500 hover:text-ink-700 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2} />
-            Voltar para login
+            {t('auth.forgot.backToLogin')}
           </button>
         </>
 
       )}
 
       <p className="text-xs text-ink-300 text-center mt-8">
-        © {new Date().getFullYear()} Void Mapper. Todos os direitos reservados.
+        {t('auth.copyright', { year: new Date().getFullYear() })}
       </p>
 
     </AuthCard>

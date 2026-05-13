@@ -1,127 +1,239 @@
-import {
-  WEEKLY_CHART_DATA,
-  CHART_MAX,
-  CHART_TICKS,
-  CHART_SERIES,
-} from '../data/dashboard'
+import { useState, useEffect, useRef, useId, useMemo } from 'react'
+import { useLanguage } from '../contexts/LanguageContext'
 
-function ChartLegend() {
+const PAD = { top: 20, right: 36, bottom: 40, left: 44 }
+
+function catmullRom(pts, tension = 0.4) {
+  if (pts.length < 2) return ''
+  const d = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]
+    const cp1x = p1.x + (p2.x - p0.x) * (tension / 2)
+    const cp1y = p1.y + (p2.y - p0.y) * (tension / 2)
+    const cp2x = p2.x - (p3.x - p1.x) * (tension / 2)
+    const cp2y = p2.y - (p3.y - p1.y) * (tension / 2)
+    if (i === 0) d.push(`M${p1.x},${p1.y}`)
+    d.push(`C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`)
+  }
+  return d.join(' ')
+}
+
+function niceMax(v) {
+  if (v === 0) return 4
+  for (const n of [4, 6, 8, 10, 12, 15, 16, 20, 24, 25, 30, 32, 40, 50, 60, 80, 100]) {
+    if (v <= n) return n
+  }
+  return Math.ceil(v / 10) * 10
+}
+
+function TipRow({ dot, label, value }) {
   return (
-    <div className="flex items-center gap-4">
-      {CHART_SERIES.map((s) => (
-        <div key={s.id} className="flex items-center gap-2">
-          <span className={`block w-[5px] h-[5px] rounded-full ${s.dot}`} />
-          <span className="text-[11px] font-medium text-ink-500">{s.label}</span>
-        </div>
-      ))}
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-1.5">
+        <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+        <span className="text-[11px] text-ink-500">{label}</span>
+      </div>
+      <span className="text-[11px] font-semibold text-ink-900">{value}</span>
     </div>
   )
 }
 
-function YAxis() {
-  return (
-    <div className="relative h-full w-9 pr-2 text-right">
-      {[...CHART_TICKS].reverse().map((tick) => (
-        <div
-          key={tick}
-          className="absolute right-2 text-[10px] leading-none text-ink-400 -translate-y-1/2"
-          style={{ top: `${((CHART_MAX - tick) / CHART_MAX) * 100}%` }}
-        >
-          {tick.toLocaleString('en-US')}
-        </div>
-      ))}
-    </div>
+export default function SurveyAreaChart({ data }) {
+  const { t } = useLanguage()
+  const gradId  = useId()
+  const clipId  = useId()
+  const containerRef = useRef(null)
+  const [dims, setDims] = useState({ width: 500, height: 220 })
+  const [hoverIdx, setHoverIdx] = useState(null)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect
+      if (width > 0 && height > 0) setDims({ width, height })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Reset hover when data changes (e.g. period/month switch)
+  useEffect(() => { setHoverIdx(null) }, [data])
+
+  const chartW = dims.width  - PAD.left - PAD.right
+  const chartH = dims.height - PAD.top  - PAD.bottom
+  const bottomY = PAD.top + chartH
+
+  const max = useMemo(() => niceMax(Math.max(...data.map((d) => d.surveys), 0)), [data])
+  const ticks = useMemo(() => {
+    const step = max / 4
+    return [0, step, step * 2, step * 3, max]
+  }, [max])
+
+  // Points go flush from PAD.left to PAD.left+chartW — aligns with grid edges
+  const pts = useMemo(
+    () =>
+      data.map((d, i) => ({
+        x: PAD.left + (data.length <= 1 ? chartW / 2 : (i / (data.length - 1)) * chartW),
+        y: PAD.top  + (max > 0 ? (1 - d.surveys / max) * chartH : chartH),
+      })),
+    [data, chartW, chartH, max],
   )
-}
 
-function GridLines() {
-  return (
-    <>
-      {CHART_TICKS.map((tick) => (
-        <div
-          key={tick}
-          className="absolute left-0 right-0 h-px bg-border-soft"
-          style={{ top: `${((CHART_MAX - tick) / CHART_MAX) * 100}%` }}
-        />
-      ))}
-    </>
-  )
-}
-
-function BarColumn({ datum }) {
-  const segments = [
-    { value: datum.openRate, color: CHART_SERIES[0].color },
-    { value: datum.ctr, color: CHART_SERIES[1].color },
-    { value: datum.bounce, color: CHART_SERIES[2].color },
-  ]
-
-  let cumulative = 0
-  const stacked = segments.map((s, i) => {
-    const bottom = (cumulative / CHART_MAX) * 100
-    const height = (s.value / CHART_MAX) * 100
-    cumulative += s.value
-    return { ...s, bottom, height, isTop: i === segments.length - 1 }
-  })
+  const linePath = catmullRom(pts)
+  const areaPath =
+    pts.length >= 2
+      ? `${linePath} L${pts.at(-1).x},${bottomY} L${pts[0].x},${bottomY}Z`
+      : ''
 
   return (
-    <div className="flex-1 h-full flex justify-center">
-      <div className="relative h-full w-[60%] max-w-[20px]">
-        {/* Light-gray full-height track */}
-        <div className="absolute inset-0 bg-page rounded-[3px]" />
+    <div
+      ref={containerRef}
+      className="relative w-full h-full"
+      onMouseLeave={() => setHoverIdx(null)}
+    >
+      <svg className="absolute inset-0 w-full h-full" overflow="hidden">
+        <defs>
+          <linearGradient
+            id={gradId}
+            x1="0" y1={PAD.top} x2="0" y2={bottomY}
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%"   stopColor="var(--color-brand-500)" stopOpacity="0.28" />
+            <stop offset="100%" stopColor="var(--color-brand-500)" stopOpacity="0.02" />
+          </linearGradient>
 
-        {/* Stacked orange segments anchored to bottom */}
-        {stacked.map((s, i) => (
-          <div
-            key={i}
-            className={`absolute left-0 right-0 ${s.color} ${s.isTop ? 'rounded-t-[3px]' : ''}`}
-            style={{
-              bottom: `${s.bottom}%`,
-              height: `${s.height}%`,
-            }}
-          />
+          {/* Hard clip: curve/fill cannot escape the chart plotting area */}
+          <clipPath id={clipId}>
+            <rect x={PAD.left} y={PAD.top} width={chartW} height={chartH} />
+          </clipPath>
+        </defs>
+
+        {/* ── Grid lines + Y-axis labels (outside clip) ───────────────── */}
+        {ticks.map((tick) => {
+          const y = PAD.top + (max > 0 ? (1 - tick / max) * chartH : chartH)
+          return (
+            <g key={tick}>
+              <line
+                x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
+                stroke="var(--color-border-soft)" strokeWidth="1"
+              />
+              <text
+                x={PAD.left - 6} y={y}
+                textAnchor="end" dominantBaseline="middle"
+                fontSize="10" fill="var(--color-ink-400)"
+              >
+                {tick}
+              </text>
+            </g>
+          )
+        })}
+
+        {/* ── X-axis labels (outside clip, below chart) ───────────────── */}
+        {data.map((d, i) => (
+          <text
+            key={d.label}
+            x={pts[i]?.x ?? 0}
+            y={bottomY + 16}
+            textAnchor="middle"
+            fontSize="10"
+            fill="var(--color-ink-400)"
+          >
+            {d.label}
+          </text>
         ))}
-      </div>
-    </div>
-  )
-}
 
-export default function WeeklyBarChart() {
-  return (
-    <div className="h-full w-full p-4 flex flex-col">
-      {/* Legend */}
-      <div className="pl-9 mb-3">
-        <ChartLegend />
-      </div>
+        {/* ── Clipped chart area: fill + line + hover guide ────────────── */}
+        <g clipPath={`url(#${clipId})`}>
 
-      {/* Plot area: y-axis + grid + bars */}
-      <div className="relative flex-1 flex">
-        <YAxis />
+          {/* Area fill */}
+          {areaPath && <path d={areaPath} fill={`url(#${gradId})`} />}
 
-        <div className="relative flex-1">
-          <GridLines />
+          {/* Line */}
+          {linePath && (
+            <path
+              d={linePath}
+              fill="none"
+              stroke="var(--color-brand-500)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
 
-          {/* Bars layer sits above grid */}
-          <div className="absolute inset-0 flex items-end gap-[6px] pb-px">
-            {WEEKLY_CHART_DATA.map((d) => (
-              <BarColumn key={d.month} datum={d} />
-            ))}
-          </div>
-        </div>
-      </div>
+          {/* Dashed vertical hover guide */}
+          {hoverIdx !== null && (
+            <line
+              x1={pts[hoverIdx].x} y1={PAD.top}
+              x2={pts[hoverIdx].x} y2={bottomY}
+              stroke="var(--color-brand-500)" strokeWidth="1"
+              strokeDasharray="4 3" opacity="0.45"
+            />
+          )}
 
-      {/* X-axis labels */}
-      <div className="flex pl-9 pt-2">
-        <div className="flex-1 flex gap-[6px]">
-          {WEEKLY_CHART_DATA.map((d) => (
-            <div
-              key={d.month}
-              className="flex-1 text-center text-[10px] leading-none text-ink-400"
-            >
-              {d.month}
+          {/* Active point marker */}
+          {hoverIdx !== null && (() => {
+            const pt = pts[hoverIdx]
+            return (
+              <>
+                <circle cx={pt.x} cy={pt.y} r={16} fill="var(--color-brand-500)" fillOpacity="0.07" />
+                <circle cx={pt.x} cy={pt.y} r={9}  fill="var(--color-brand-500)" fillOpacity="0.15" />
+                <circle cx={pt.x} cy={pt.y} r={4}  fill="var(--color-surface)"   stroke="var(--color-brand-500)" strokeWidth="2.5" />
+              </>
+            )
+          })()}
+
+        </g>
+
+        {/* ── Invisible hover hit areas (full width, outside clip) ──────── */}
+        {pts.map((pt, i) => {
+          const x1 = i === 0              ? PAD.left           : (pts[i - 1].x + pt.x) / 2
+          const x2 = i === pts.length - 1 ? PAD.left + chartW  : (pt.x + pts[i + 1].x) / 2
+          return (
+            <rect
+              key={i}
+              x={x1} y={PAD.top} width={x2 - x1} height={chartH}
+              fill="transparent"
+              style={{ cursor: 'crosshair' }}
+              onMouseEnter={() => setHoverIdx(i)}
+            />
+          )
+        })}
+      </svg>
+
+      {/* ── Tooltip HTML overlay ─────────────────────────────────────────── */}
+      {hoverIdx !== null && (() => {
+        const item = data[hoverIdx]
+        const pt   = pts[hoverIdx]
+        const ttW  = 180
+        let   left = pt.x - ttW / 2
+        if (left < 4)                        left = 4
+        if (left + ttW > dims.width - 4)     left = dims.width - 4 - ttW
+        const above = pt.y > dims.height / 2
+        return (
+          <div
+            className="absolute pointer-events-none bg-surface border border-border-soft rounded-xl px-3 py-2.5 z-10"
+            style={{
+              width: ttW,
+              left,
+              top:       above ? pt.y - 12 : pt.y + 12,
+              transform: above ? 'translateY(-100%)' : 'translateY(0)',
+            }}
+          >
+            <p className="text-xs font-semibold text-ink-900 mb-2">{item.label}</p>
+            <div className="flex flex-col gap-1.5">
+              <TipRow dot="bg-brand-500"   label={t('chart.tooltip.total')}          value={item.surveys} />
+              <TipRow dot="bg-emerald-500" label={t('chart.tooltip.approved')}       value={item.approved ?? '–'} />
+              <TipRow dot="bg-orange-700"  label={t('chart.tooltip.deformations')}   value={item.deformations} />
+              <TipRow dot="bg-amber-500"   label={t('chart.tooltip.rehabilitating')} value={item.rehabilitating ?? 0} />
+              <TipRow dot="bg-blue-500"    label={t('chart.tooltip.errors')}         value={item.errors ?? 0} />
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

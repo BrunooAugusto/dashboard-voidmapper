@@ -4,6 +4,7 @@ import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
 import Avatar from './Avatar'
+import { updateProfile } from '../services/authService'
 import { useLanguage } from '../contexts/LanguageContext'
 
 export default function ProfileEditPage({ user, onSave, onBack }) {
@@ -15,6 +16,8 @@ export default function ProfileEditPage({ user, onSave, onBack }) {
     initials: user.initials,
   })
   const [avatarSrc, setAvatarSrc] = useState(user.avatarSrc ?? null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
   const fileInputRef = useRef(null)
 
   function set(key, val) {
@@ -27,10 +30,18 @@ export default function ProfileEditPage({ user, onSave, onBack }) {
     e.target.value = ''
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    onSave?.({ ...form, avatarSrc })
-    onBack?.()
+    setLoading(true)
+    setError(null)
+    try {
+      await updateProfile({ name: form.name, role: form.role, initials: form.initials.trim() || previewInitials })
+      onSave?.({ ...form, avatarSrc })
+      onBack?.()
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
   }
 
   const previewInitials = form.initials.trim() || '??'
@@ -53,7 +64,7 @@ export default function ProfileEditPage({ user, onSave, onBack }) {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="p-8 3xl:p-10 grid grid-cols-1 lg:grid-cols-2 gap-8 3xl:gap-10">
 
             {/* Left column: form fields */}
             <div className="flex flex-col gap-5">
@@ -95,20 +106,26 @@ export default function ProfileEditPage({ user, onSave, onBack }) {
                 </p>
               </FormField>
 
+              {error && (
+                <p className="text-sm text-danger-fg">{error}</p>
+              )}
+
               {/* Action buttons */}
               <div className="flex gap-4 pt-2">
                 <button
                   type="button"
                   onClick={onBack}
-                  className="flex-1 h-[46px] rounded-[7px] border border-border text-sm font-medium text-ink-900 hover:bg-page transition-colors"
+                  disabled={loading}
+                  className="flex-1 h-[46px] rounded-[7px] border border-border text-sm font-medium text-ink-900 hover:bg-page transition-colors disabled:opacity-50"
                 >
                   {t('profile.cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 h-[46px] rounded-[7px] bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
+                  disabled={loading}
+                  className="flex-1 h-[46px] rounded-[7px] bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
                 >
-                  {t('profile.save')}
+                  {loading ? 'Salvando...' : t('profile.save')}
                 </button>
               </div>
             </div>
@@ -134,10 +151,10 @@ export default function ProfileEditPage({ user, onSave, onBack }) {
                   )}
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-ink-900 truncate leading-5">
-                      {form.name || 'Nome do usuário'}
+                      {form.name || t('profile.namePlaceholder')}
                     </div>
                     <div className="text-xs text-ink-500 truncate leading-[15px] mt-0.5">
-                      {form.role || 'Cargo / Função'}
+                      {form.role || t('profile.rolePlaceholder')}
                     </div>
                   </div>
                 </div>
@@ -184,7 +201,7 @@ export default function ProfileEditPage({ user, onSave, onBack }) {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center gap-2 text-ink-400 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 transition-all duration-200 cursor-pointer"
+                className="w-full border-2 border-dashed border-border rounded-xl p-6 flex flex-col items-center gap-2 text-ink-400 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-500/10 transition-all duration-200 cursor-pointer"
               >
                 <ImagePlus className="w-6 h-6" strokeWidth={1.75} />
                 <span className="text-sm font-medium">{t('profile.changePhoto')}</span>

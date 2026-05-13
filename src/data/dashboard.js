@@ -1,26 +1,48 @@
-export const WEEKLY_CHART_DATA = [
-  { month: 'Jan', openRate: 300, ctr: 240, bounce: 300 },
-  { month: 'Feb', openRate: 380, ctr: 280, bounce: 290 },
-  { month: 'Mar', openRate: 240, ctr: 200, bounce: 290 },
-  { month: 'Apr', openRate: 300, ctr: 260, bounce: 300 },
-  { month: 'May', openRate: 250, ctr: 200, bounce: 280 },
-  { month: 'Jun', openRate: 350, ctr: 280, bounce: 290 },
-  { month: 'Jul', openRate: 300, ctr: 250, bounce: 290 },
-  { month: 'Aug', openRate: 320, ctr: 250, bounce: 290 },
-  { month: 'Sep', openRate: 300, ctr: 250, bounce: 290 },
-  { month: 'Oct', openRate: 320, ctr: 270, bounce: 300 },
-  { month: 'Nov', openRate: 380, ctr: 280, bounce: 290 },
-  { month: 'Dec', openRate: 280, ctr: 240, bounce: 290 },
-]
+export const SURVEY_ANALYTICS_DATA = {
+  weekly: [
+    { label: 'Seg', surveys: 2,  approved: 2,  deformations: 0, rehabilitating: 0, errors: 0 },
+    { label: 'Ter', surveys: 0,  approved: 0,  deformations: 0, rehabilitating: 0, errors: 0 },
+    { label: 'Qua', surveys: 3,  approved: 2,  deformations: 1, rehabilitating: 0, errors: 0 },
+    { label: 'Qui', surveys: 1,  approved: 1,  deformations: 0, rehabilitating: 0, errors: 0 },
+    { label: 'Sex', surveys: 4,  approved: 2,  deformations: 2, rehabilitating: 0, errors: 0 },
+    { label: 'Sáb', surveys: 0,  approved: 0,  deformations: 0, rehabilitating: 0, errors: 0 },
+    { label: 'Dom', surveys: 1,  approved: 1,  deformations: 0, rehabilitating: 0, errors: 0 },
+  ],
+  monthly: [
+    { label: 'Sem 1', surveys: 8,  approved: 6, deformations: 1, rehabilitating: 1, errors: 0 },
+    { label: 'Sem 2', surveys: 5,  approved: 3, deformations: 2, rehabilitating: 0, errors: 0 },
+    { label: 'Sem 3', surveys: 12, approved: 8, deformations: 3, rehabilitating: 1, errors: 0 },
+    { label: 'Sem 4', surveys: 6,  approved: 5, deformations: 1, rehabilitating: 0, errors: 0 },
+  ],
+  annual: [
+    { label: 'Jan', surveys: 18, approved: 14, deformations: 3, rehabilitating: 1, errors: 0 },
+    { label: 'Fev', surveys: 24, approved: 18, deformations: 5, rehabilitating: 1, errors: 0 },
+    { label: 'Mar', surveys: 16, approved: 13, deformations: 2, rehabilitating: 1, errors: 0 },
+    { label: 'Abr', surveys: 22, approved: 17, deformations: 4, rehabilitating: 1, errors: 0 },
+    { label: 'Mai', surveys: 30, approved: 23, deformations: 6, rehabilitating: 1, errors: 0 },
+    { label: 'Jun', surveys: 28, approved: 22, deformations: 5, rehabilitating: 1, errors: 0 },
+    { label: 'Jul', surveys: 19, approved: 15, deformations: 3, rehabilitating: 1, errors: 0 },
+    { label: 'Ago', surveys: 25, approved: 20, deformations: 4, rehabilitating: 1, errors: 0 },
+    { label: 'Set', surveys: 21, approved: 16, deformations: 4, rehabilitating: 1, errors: 0 },
+    { label: 'Out', surveys: 33, approved: 25, deformations: 7, rehabilitating: 1, errors: 0 },
+    { label: 'Nov', surveys: 29, approved: 23, deformations: 5, rehabilitating: 1, errors: 0 },
+    { label: 'Dez', surveys: 15, approved: 12, deformations: 2, rehabilitating: 1, errors: 0 },
+  ],
+}
 
-export const CHART_MAX = 1000
-export const CHART_TICKS = [0, 200, 400, 600, 800, 1000]
+function makeMonthWeeks(total, deformations, rehabilitating) {
+  const deformRatio = total > 0 ? deformations / total : 0
+  const rehabRatio  = total > 0 ? rehabilitating  / total : 0
+  return [0.27, 0.21, 0.33, 0.19].map((r, i) => {
+    const surveys = Math.max(1, Math.round(total * r))
+    const def     = Math.max(0, Math.round(surveys * deformRatio))
+    const rehab   = Math.max(0, Math.round(surveys * rehabRatio))
+    return { label: `Sem ${i + 1}`, surveys, approved: Math.max(0, surveys - def - rehab), deformations: def, rehabilitating: rehab, errors: 0 }
+  })
+}
 
-export const CHART_SERIES = [
-  { id: 'openRate', label: 'Open rate', color: 'bg-brand-300', dot: 'bg-brand-300' },
-  { id: 'ctr', label: 'CTR', color: 'bg-brand-500', dot: 'bg-brand-500' },
-  { id: 'bounce', label: 'Bounce rate', color: 'bg-brand-700', dot: 'bg-brand-700' },
-]
+export const MONTHLY_ANALYTICS = SURVEY_ANALYTICS_DATA.annual.map((m) =>
+  makeMonthWeeks(m.surveys, m.deformations, m.rehabilitating))
 
 export const REHABILITATED_PROJECTS = [
   { id: 1, code: '20FGSPSPT1-REAB', date: '10/03/2026' },
@@ -47,6 +69,8 @@ export const PROJECT_DETAIL = {
     'https://www.figma.com/api/mcp/asset/387cb34a-5dc2-4df7-9d14-cc851e34f535',
   ],
   mapImage: 'https://www.figma.com/api/mcp/asset/7d13b1fb-e14b-4b4a-a2e3-da6571685648',
+  projectLength: 296,
+  measurementImage: 'https://www.figma.com/api/mcp/asset/5cbbd6b0-a32a-4a7e-bf6c-484990fcf249',
 }
 
 export const PROJECTS = [

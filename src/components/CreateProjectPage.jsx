@@ -1,11 +1,13 @@
-import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { ArrowLeft, Camera, ImagePlus } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
 import NumberStepper from './NumberStepper'
 import StatusPicker from './StatusPicker'
 import UploadZone from './UploadZone'
+import { cn } from '../lib/cn'
+import { createProject, uploadProjectImage } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 
 const today = new Date().toISOString().split('T')[0]
@@ -14,27 +16,107 @@ const EMPTY_FORM = {
   projectName: '',
   date: today,
   surveys: 0,
+  projectLength: '',
   fileName: '',
   status: 'success',
   notes: '',
   projectLink: '',
 }
 
-export default function CreateProjectPage({ onBack, onSave }) {
+function MeasurementImageSlot({ src, onChange }) {
+  const inputRef = useRef(null)
+  const { t } = useLanguage()
+
+  function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (file) onChange(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-medium text-ink-900">{t('form.measurementImage')}</span>
+      <div
+        className={cn(
+          'relative group rounded-xl overflow-hidden aspect-[16/9]',
+          src ? 'bg-zinc-900' : 'bg-input-bg border-2 border-dashed border-border',
+        )}
+      >
+        {src ? (
+          <>
+            <img src={src} alt="Metragem" className="w-full h-full object-contain" />
+            <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <button
+                type="button"
+                title={t('form.changeMeasurementImage')}
+                onClick={() => inputRef.current?.click()}
+                className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white hover:bg-brand-600 transition-colors"
+              >
+                <Camera className="w-4 h-4" strokeWidth={2} />
+              </button>
+            </div>
+            <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/70 pointer-events-none">
+              {t('form.changeMeasurementImage')}
+            </span>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="w-full h-full flex flex-col items-center justify-center gap-2 text-ink-400 hover:text-brand-500 transition-colors"
+          >
+            <ImagePlus className="w-5 h-5" strokeWidth={1.75} />
+            <span className="text-xs font-medium">{t('form.addMeasurementImage')}</span>
+          </button>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+    </div>
+  )
+}
+
+export default function CreateProjectPage({ onBack }) {
   const { t } = useLanguage()
   const [form, setForm] = useState(EMPTY_FORM)
   const [files, setFiles] = useState([])
+  const [measurementSrc, setMeasurementSrc] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
 
   function set(key, val) {
     setForm((prev) => ({ ...prev, [key]: val }))
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    const payload = { ...form, files }
-    console.log('Novo projeto:', payload)
-    onSave?.(payload)
-    onBack?.()
+    setLoading(true)
+    setError(null)
+    try {
+      const newProject = await createProject({
+        code:          form.projectName,
+        date:          form.date,
+        surveyCount:   Number(form.surveys),
+        projectLength: form.projectLength ? parseFloat(form.projectLength) : null,
+        fileName:      form.fileName    || null,
+        statuses:      form.status ? [{ variant: form.status }] : [],
+        notes:         form.notes       || null,
+        projectUrl:    form.projectLink || null,
+      })
+      // Upload any selected images now that we have a project ID
+      for (const file of files) {
+        await uploadProjectImage(newProject.id, file)
+      }
+      onBack?.()
+    } catch (err) {
+      setError(err.message)
+      setLoading(false)
+    }
   }
 
   return (
@@ -55,7 +137,7 @@ export default function CreateProjectPage({ onBack, onSave }) {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <div className="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="p-8 3xl:p-10 grid grid-cols-1 lg:grid-cols-2 gap-8 3xl:gap-10">
 
             {/* Left column: form fields */}
             <div className="flex flex-col gap-5">
@@ -84,6 +166,22 @@ export default function CreateProjectPage({ onBack, onSave }) {
                   />
                 </FormField>
               </div>
+
+              <FormField label={t('form.projectLength')}>
+                <div className="relative">
+                  <FormInput
+                    type="number"
+                    min="0"
+                    placeholder={t('form.projectLengthPlaceholder')}
+                    value={form.projectLength}
+                    onChange={(e) => set('projectLength', e.target.value)}
+                    className="pr-10"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-ink-400 pointer-events-none select-none">
+                    m
+                  </span>
+                </div>
+              </FormField>
 
               <FormField label={t('form.fileName')}>
                 <FormInput
@@ -119,26 +217,36 @@ export default function CreateProjectPage({ onBack, onSave }) {
                 />
               </FormField>
 
+              {error && (
+                <p className="text-sm text-danger-fg">{error}</p>
+              )}
+
               {/* Action buttons */}
               <div className="flex gap-4 pt-2">
                 <button
                   type="button"
                   onClick={onBack}
-                  className="flex-1 h-[46px] rounded-[7px] border border-border text-sm font-medium text-ink-900 hover:bg-page transition-colors"
+                  disabled={loading}
+                  className="flex-1 h-[46px] rounded-[7px] border border-border text-sm font-medium text-ink-900 hover:bg-page transition-colors disabled:opacity-50"
                 >
                   {t('form.cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 h-[46px] rounded-[7px] bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
+                  disabled={loading}
+                  className="flex-1 h-[46px] rounded-[7px] bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
                 >
-                  {t('form.save')}
+                  {loading ? 'Salvando...' : t('form.save')}
                 </button>
               </div>
             </div>
 
-            {/* Right column: upload zone */}
-            <UploadZone files={files} onFilesChange={setFiles} />
+            {/* Right column: project images + measurement image */}
+            <div className="flex flex-col gap-5">
+              <UploadZone files={files} onFilesChange={setFiles} />
+              <MeasurementImageSlot src={measurementSrc} onChange={setMeasurementSrc} />
+            </div>
+
           </div>
         </form>
       </Card>

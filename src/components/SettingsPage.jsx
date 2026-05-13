@@ -1,29 +1,22 @@
 import { useState } from 'react'
 import {
-  User,
-  Monitor,
-  Shield,
-  Sun,
-  Moon,
-  Globe,
-  Bell,
-  Laptop,
-  Smartphone,
-  ChevronDown,
-  ChevronUp,
-  Pencil,
+  User, Monitor, Shield, Sun, Moon, Globe, Bell,
+  Laptop, Smartphone, ChevronDown, ChevronUp, Pencil, LogOut,
 } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
 import { cn } from '../lib/cn'
+import { updateProfile, changePassword } from '../services/authService'
+import { useTheme } from '../contexts/ThemeContext'
+import { useLanguage } from '../contexts/LanguageContext'
 
-// ── Inline subcomponents ───────────────────────────────────────────────────────
+// ── Subcomponents ──────────────────────────────────────────────────────────────
 
 function SectionHeader({ icon: Icon, title, description }) {
   return (
     <div className="flex items-start gap-3 pb-5 border-b border-border-soft mb-1">
-      <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0 mt-0.5">
+      <div className="w-9 h-9 rounded-lg bg-brand-500/10 flex items-center justify-center shrink-0 mt-0.5">
         <Icon className="w-5 h-5 text-brand-500" strokeWidth={1.75} />
       </div>
       <div>
@@ -50,7 +43,7 @@ function Toggle({ checked, onChange }) {
     >
       <span
         className={cn(
-          'absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200',
+          'absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform duration-200',
           checked ? 'translate-x-5' : 'translate-x-0',
         )}
       />
@@ -111,38 +104,60 @@ function SettingRow({ label, description, children, borderless = false }) {
 }
 
 const SESSION_DATA = [
-  { id: 1, Device: Laptop,     name: 'MacBook Pro',  browser: 'Chrome 124', location: 'São Paulo, BR',        time: 'Ativo agora',    current: true  },
-  { id: 2, Device: Smartphone, name: 'iPhone 15',    browser: 'Safari 17',  location: 'São Paulo, BR',        time: 'Há 2 horas',     current: false },
-  { id: 3, Device: Laptop,     name: 'Windows PC',   browser: 'Edge 123',   location: 'Belo Horizonte, BR',   time: 'Há 1 dia',       current: false },
+  { id: 1, Device: Laptop,     name: 'MacBook Pro',  browser: 'Chrome 124', location: 'São Paulo, BR',      time: 'Ativo agora',  current: true  },
+  { id: 2, Device: Smartphone, name: 'iPhone 15',    browser: 'Safari 17',  location: 'São Paulo, BR',      time: 'Há 2 horas',   current: false },
+  { id: 3, Device: Laptop,     name: 'Windows PC',   browser: 'Edge 123',   location: 'Belo Horizonte, BR', time: 'Há 1 dia',     current: false },
 ]
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function SettingsPage({ user, onSave, onNavigate }) {
-  // Profile fields
+export default function SettingsPage({ user, onSave, onNavigate, onLogout }) {
+  const { theme, setTheme } = useTheme()
+  const { lang, setLang, t } = useLanguage()
+
   const [profile, setProfile] = useState({
     name:     user.name,
     email:    user.email,
     role:     user.role,
     initials: user.initials,
   })
-
-  // System preferences
-  const [theme,         setTheme]         = useState('light')
-  const [language,      setLanguage]      = useState('pt')
-  const [notifications, setNotifications] = useState(true)
-
-  // Security
-  const [twoFactor,        setTwoFactor]        = useState(false)
-  const [showPassword,     setShowPassword]     = useState(false)
-  const [passwords,        setPasswords]        = useState({ current: '', next: '', confirm: '' })
+  const [notifications,  setNotifications]  = useState(true)
+  const [twoFactor,      setTwoFactor]      = useState(false)
+  const [showPassword,   setShowPassword]   = useState(false)
+  const [passwords,      setPasswords]      = useState({ current: '', next: '', confirm: '' })
+  const [pwLoading,      setPwLoading]      = useState(false)
+  const [pwError,        setPwError]        = useState(null)
+  const [pwSuccess,      setPwSuccess]      = useState(false)
 
   function setField(key, val) {
     setProfile((p) => ({ ...p, [key]: val }))
   }
 
-  function handleSave(e) {
+  async function handleChangePassword() {
+    setPwError(null)
+    setPwSuccess(false)
+    if (!passwords.current || !passwords.next) { setPwError('Preencha todos os campos.'); return }
+    if (passwords.next !== passwords.confirm)   { setPwError('As senhas não coincidem.'); return }
+    if (passwords.next.length < 6)              { setPwError('Nova senha deve ter ao menos 6 caracteres.'); return }
+    setPwLoading(true)
+    try {
+      await changePassword({ currentPassword: passwords.current, newPassword: passwords.next })
+      setPasswords({ current: '', next: '', confirm: '' })
+      setShowPassword(false)
+      setPwSuccess(true)
+      setTimeout(() => setPwSuccess(false), 3000)
+    } catch (err) {
+      setPwError(err.message)
+    } finally {
+      setPwLoading(false)
+    }
+  }
+
+  async function handleSave(e) {
     e.preventDefault()
+    try {
+      await updateProfile({ name: profile.name, role: profile.role, initials: profile.initials })
+    } catch { /* silently fall through — localStorage still updated */ }
     onSave?.({ ...user, ...profile })
   }
 
@@ -151,21 +166,19 @@ export default function SettingsPage({ user, onSave, onNavigate }) {
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-4">
 
-      {/* ── Page header ── */}
+      {/* Page header */}
       <div className="mb-2">
-        <h2 className="text-[28px] font-semibold text-ink-900 leading-tight">Configurações</h2>
-        <p className="text-sm text-ink-500 mt-1">
-          Gerencie preferências, conta e aparência do sistema
-        </p>
+        <h2 className="text-[28px] font-semibold text-ink-900 leading-tight">{t('settings.title')}</h2>
+        <p className="text-sm text-ink-500 mt-1">{t('settings.subtitle')}</p>
       </div>
 
-      {/* ── 1. Profile card ── */}
+      {/* 1. Profile card */}
       <Card>
         <div className="p-6 flex flex-col gap-4">
           <SectionHeader
             icon={User}
-            title="Perfil"
-            description="Informações exibidas no sidebar e nas páginas do sistema"
+            title={t('settings.profile.section')}
+            description={t('settings.profile.description')}
           />
 
           <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -189,41 +202,41 @@ export default function SettingsPage({ user, onSave, onNavigate }) {
                 className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-border-soft text-xs font-medium text-ink-700 hover:bg-page transition-colors"
               >
                 <Pencil className="w-3 h-3" strokeWidth={2} />
-                Editar foto
+                {t('settings.profile.editPhoto')}
               </button>
             </div>
 
             {/* Fields grid */}
-            <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField label="Nome">
+            <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 4xl:grid-cols-4 gap-4 3xl:gap-5">
+              <FormField label={t('settings.profile.name')}>
                 <FormInput
                   value={profile.name}
-                  placeholder="Nome completo"
+                  placeholder={t('settings.profile.namePlaceholder')}
                   onChange={(e) => setField('name', e.target.value)}
                 />
               </FormField>
 
-              <FormField label="Email">
+              <FormField label={t('settings.profile.email')}>
                 <FormInput
                   type="email"
                   value={profile.email}
-                  placeholder="seu@email.com"
+                  placeholder={t('settings.profile.emailPlaceholder')}
                   onChange={(e) => setField('email', e.target.value)}
                 />
               </FormField>
 
-              <FormField label="Cargo / Função">
+              <FormField label={t('settings.profile.role')}>
                 <FormInput
                   value={profile.role}
-                  placeholder="Ex: Engenheiro de Minas"
+                  placeholder={t('settings.profile.rolePlaceholder')}
                   onChange={(e) => setField('role', e.target.value)}
                 />
               </FormField>
 
-              <FormField label="Iniciais do Avatar">
+              <FormField label={t('settings.profile.initials')}>
                 <FormInput
                   value={profile.initials}
-                  placeholder="Ex: BA"
+                  placeholder={t('settings.profile.initialsPlaceholder')}
                   maxLength={2}
                   onChange={(e) => setField('initials', e.target.value.toUpperCase())}
                 />
@@ -233,126 +246,138 @@ export default function SettingsPage({ user, onSave, onNavigate }) {
         </div>
       </Card>
 
-      {/* ── 2. System preferences card ── */}
+      {/* 2. System preferences card */}
       <Card>
         <div className="p-6 flex flex-col gap-0">
           <SectionHeader
             icon={Monitor}
-            title="Preferências do Sistema"
-            description="Personalize a aparência e o comportamento do painel"
+            title={t('settings.system.section')}
+            description={t('settings.system.description')}
           />
 
           <PreferenceRow
-            label="Tema"
-            description="Define o esquema de cores do painel"
+            label={t('settings.system.theme')}
+            description={t('settings.system.themeDescription')}
           >
             <ChipGroup
               value={theme}
               onChange={setTheme}
               options={[
-                { value: 'light',  label: 'Claro',  icon: Sun     },
-                { value: 'dark',   label: 'Escuro', icon: Moon    },
-                { value: 'system', label: 'Sistema', icon: Monitor },
+                { value: 'light',  label: t('settings.system.themeLight'),  icon: Sun     },
+                { value: 'dark',   label: t('settings.system.themeDark'),   icon: Moon    },
+                { value: 'system', label: t('settings.system.themeSystem'), icon: Monitor },
               ]}
             />
           </PreferenceRow>
 
           <PreferenceRow
-            label="Idioma"
-            description="Idioma exibido na interface"
+            label={t('settings.system.language')}
+            description={t('settings.system.langDescription')}
           >
             <ChipGroup
-              value={language}
-              onChange={setLanguage}
+              value={lang}
+              onChange={setLang}
               options={[
-                { value: 'pt', label: 'Português', icon: Globe },
-                { value: 'en', label: 'English',   icon: Globe },
+                { value: 'pt-BR', label: t('settings.system.langPT'), icon: Globe },
+                { value: 'en',    label: t('settings.system.langEN'), icon: Globe },
               ]}
             />
           </PreferenceRow>
 
           <PreferenceRow
-            label="Notificações"
-            description="Receber alertas sobre levantamentos e status de projetos"
+            label={t('settings.system.notifications')}
+            description={t('settings.system.notifDescription')}
             last
           >
             <div className="flex items-center gap-3">
               <Toggle checked={notifications} onChange={setNotifications} />
               <span className="text-sm text-ink-500">
-                {notifications ? 'Ativado' : 'Desativado'}
+                {notifications ? t('settings.system.notifOn') : t('settings.system.notifOff')}
               </span>
             </div>
           </PreferenceRow>
         </div>
       </Card>
 
-      {/* ── 3. Security card ── */}
+      {/* 3. Security card */}
       <Card>
         <div className="p-6 flex flex-col gap-0">
           <SectionHeader
             icon={Shield}
-            title="Segurança"
-            description="Gerencie senha, sessões e autenticação"
+            title={t('settings.security.section')}
+            description={t('settings.security.description')}
           />
 
           {/* Change password row */}
           <SettingRow
-            label="Alterar Senha"
-            description="Recomendado atualizar a senha periodicamente"
+            label={t('settings.security.changePassword')}
+            description={t('settings.security.changePassDesc')}
           >
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
               className="h-8 px-4 flex items-center gap-1.5 rounded-lg border border-border-soft text-sm font-medium text-ink-700 hover:bg-page transition-colors"
             >
-              {showPassword ? 'Cancelar' : 'Alterar'}
+              {showPassword ? t('settings.security.cancel') : t('settings.security.change')}
               {showPassword
-                ? <ChevronUp  className="w-3.5 h-3.5" strokeWidth={2} />
+                ? <ChevronUp   className="w-3.5 h-3.5" strokeWidth={2} />
                 : <ChevronDown className="w-3.5 h-3.5" strokeWidth={2} />}
             </button>
           </SettingRow>
 
-          {/* Expandable password form */}
           {showPassword && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4 border-b border-border-soft">
-              <FormField label="Senha atual">
-                <FormInput
-                  type="password"
-                  value={passwords.current}
-                  placeholder="••••••••"
-                  onChange={(e) => setPasswords((p) => ({ ...p, current: e.target.value }))}
-                />
-              </FormField>
-              <FormField label="Nova senha">
-                <FormInput
-                  type="password"
-                  value={passwords.next}
-                  placeholder="••••••••"
-                  onChange={(e) => setPasswords((p) => ({ ...p, next: e.target.value }))}
-                />
-              </FormField>
-              <FormField label="Confirmar nova senha">
-                <FormInput
-                  type="password"
-                  value={passwords.confirm}
-                  placeholder="••••••••"
-                  onChange={(e) => setPasswords((p) => ({ ...p, confirm: e.target.value }))}
-                />
-              </FormField>
+            <div className="py-4 border-b border-border-soft flex flex-col gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 3xl:gap-5">
+                <FormField label={t('settings.security.currentPassword')}>
+                  <FormInput
+                    type="password"
+                    value={passwords.current}
+                    placeholder="••••••••"
+                    onChange={(e) => setPasswords((p) => ({ ...p, current: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label={t('settings.security.newPassword')}>
+                  <FormInput
+                    type="password"
+                    value={passwords.next}
+                    placeholder="••••••••"
+                    onChange={(e) => setPasswords((p) => ({ ...p, next: e.target.value }))}
+                  />
+                </FormField>
+                <FormField label={t('settings.security.confirmPassword')}>
+                  <FormInput
+                    type="password"
+                    value={passwords.confirm}
+                    placeholder="••••••••"
+                    onChange={(e) => setPasswords((p) => ({ ...p, confirm: e.target.value }))}
+                  />
+                </FormField>
+              </div>
+              {pwError   && <p className="text-xs font-medium text-danger-fg">{pwError}</p>}
+              {pwSuccess && <p className="text-xs font-medium text-success-fg">✓ Senha alterada com sucesso</p>}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleChangePassword}
+                  disabled={pwLoading}
+                  className="h-9 px-5 rounded-full bg-brand-500 text-sm font-medium text-white hover:bg-brand-600 transition-colors disabled:opacity-50"
+                >
+                  {pwLoading ? '...' : t('settings.security.changePassword')}
+                </button>
+              </div>
             </div>
           )}
 
           {/* Active sessions */}
           <SettingRow
-            label="Sessões Ativas"
-            description={`${SESSION_DATA.length} dispositivos conectados à sua conta`}
+            label={t('settings.security.activeSessions')}
+            description={t('settings.security.devicesConnected', { count: SESSION_DATA.length })}
           >
-            <span className="h-6 px-2.5 rounded-full bg-brand-50 text-brand-600 text-xs font-semibold inline-flex items-center">
-              {SESSION_DATA.length} ativas
+            <span className="h-6 px-2.5 rounded-full bg-brand-500/15 text-brand-500 text-xs font-semibold inline-flex items-center">
+              {t('settings.security.activeCount', { count: SESSION_DATA.length })}
             </span>
           </SettingRow>
 
-          {/* Session list */}
           <div className="flex flex-col gap-2 pb-4 border-b border-border-soft">
             {SESSION_DATA.map((s) => (
               <div
@@ -372,14 +397,14 @@ export default function SettingsPage({ user, onSave, onNavigate }) {
                 </div>
                 {s.current ? (
                   <span className="text-[11px] font-semibold text-success-fg bg-success-bg px-2 py-0.5 rounded-full shrink-0">
-                    Este dispositivo
+                    {t('settings.security.thisDevice')}
                   </span>
                 ) : (
                   <button
                     type="button"
                     className="text-[11px] font-medium text-ink-400 hover:text-danger-fg transition-colors shrink-0"
                   >
-                    Encerrar
+                    {t('settings.security.signOut')}
                   </button>
                 )}
               </div>
@@ -391,37 +416,48 @@ export default function SettingsPage({ user, onSave, onNavigate }) {
             <div className="flex items-center justify-between gap-6">
               <div>
                 <p className="text-sm font-medium text-ink-900">
-                  Autenticação em Duas Etapas (2FA)
+                  {t('settings.security.twoFactor')}
                 </p>
                 <p className="text-xs text-ink-500 mt-0.5">
-                  Adicione uma camada extra de proteção à sua conta
+                  {t('settings.security.twoFactorDesc')}
                 </p>
               </div>
               <Toggle checked={twoFactor} onChange={setTwoFactor} />
             </div>
             {twoFactor && (
               <p className="text-xs font-medium text-success-fg mt-3">
-                2FA ativo — sua conta está protegida com verificação adicional.
+                {t('settings.security.twoFactorActive')}
               </p>
             )}
           </div>
         </div>
       </Card>
 
-      {/* ── Actions ── */}
-      <div className="flex gap-3 pb-4">
+      {/* Actions */}
+      <div className="flex flex-wrap gap-3 pb-4">
+        {onLogout && (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="h-[46px] px-5 rounded-[7px] border border-border text-sm font-medium text-danger-fg hover:bg-danger-bg transition-colors flex items-center gap-2"
+          >
+            <LogOut className="w-4 h-4" strokeWidth={1.75} />
+            {t('settings.logout')}
+          </button>
+        )}
+        <div className="flex-1" />
         <button
           type="button"
           onClick={() => onNavigate?.('dashboard')}
-          className="flex-1 sm:flex-none sm:w-36 h-[46px] rounded-[7px] border border-border text-sm font-medium text-ink-900 hover:bg-page transition-colors"
+          className="h-[46px] px-6 rounded-[7px] border border-border text-sm font-medium text-ink-900 hover:bg-page transition-colors"
         >
-          Cancelar
+          {t('settings.cancel')}
         </button>
         <button
           type="submit"
-          className="flex-1 sm:flex-none sm:w-48 h-[46px] rounded-[7px] bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
+          className="h-[46px] px-8 rounded-[7px] bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors"
         >
-          Salvar Alterações
+          {t('settings.save')}
         </button>
       </div>
 

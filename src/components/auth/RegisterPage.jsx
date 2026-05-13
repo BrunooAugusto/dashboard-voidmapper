@@ -1,25 +1,35 @@
 import { useState } from 'react'
 import AuthCard from './AuthCard'
 import AuthInput from './AuthInput'
+import { useLanguage } from '../../contexts/LanguageContext'
 
 export default function RegisterPage({ onRegister, onGoToLogin }) {
+  const { t } = useLanguage()
   const [name, setName]         = useState('')
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
-  const [error, setError]       = useState('')
+  const [error, setError]     = useState('')
+  const [loading, setLoading] = useState(false)
 
   function clearError() {
     if (error) setError('')
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (password !== confirm) {
-      setError('As senhas não coincidem.')
+      setError(t('auth.register.passwordMismatch'))
       return
     }
-    onRegister({ email, name })
+    setError('')
+    setLoading(true)
+    try {
+      await onRegister({ email, name, password })
+    } catch (err) {
+      setError(err.message || 'Falha no cadastro')
+      setLoading(false)
+    }
   }
 
   return (
@@ -37,45 +47,44 @@ export default function RegisterPage({ onRegister, onGoToLogin }) {
 
       {/* Heading */}
       <div className="mb-7">
-        <h2 className="text-2xl font-bold text-ink-900 leading-tight">Criar sua conta</h2>
-        <p className="text-sm text-ink-500 mt-1.5">Preencha os dados para começar.</p>
+        <h2 className="text-2xl font-bold text-ink-900 leading-tight">{t('auth.register.title')}</h2>
+        <p className="text-sm text-ink-500 mt-1.5">{t('auth.register.subtitle')}</p>
       </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthInput
-          label="Nome"
-          placeholder="Seu nome completo"
+          label={t('auth.register.name')}
+          placeholder={t('auth.register.namePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="name"
           required
         />
         <AuthInput
-          label="Email"
+          label={t('auth.register.email')}
           type="email"
-          placeholder="seu@email.com"
+          placeholder={t('auth.register.emailPlaceholder')}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
           required
         />
         <AuthInput
-          label="Senha"
+          label={t('auth.register.password')}
           type="password"
-          placeholder="••••••••"
+          placeholder={t('auth.register.passwordPlaceholder')}
           value={password}
           onChange={(e) => { setPassword(e.target.value); clearError() }}
           autoComplete="new-password"
           required
         />
 
-        {/* Confirm password + inline error */}
         <div className="flex flex-col gap-1.5">
           <AuthInput
-            label="Confirmar senha"
+            label={t('auth.register.confirmPassword')}
             type="password"
-            placeholder="••••••••"
+            placeholder={t('auth.register.passwordPlaceholder')}
             value={confirm}
             onChange={(e) => { setConfirm(e.target.value); clearError() }}
             autoComplete="new-password"
@@ -88,26 +97,27 @@ export default function RegisterPage({ onRegister, onGoToLogin }) {
 
         <button
           type="submit"
-          className="mt-2 h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors"
+          disabled={loading}
+          className="mt-2 h-[52px] w-full rounded-[10px] bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Criar conta
+          {loading ? '...' : t('auth.register.submit')}
         </button>
       </form>
 
       {/* Back to login */}
       <div className="mt-6 text-center">
-        <span className="text-sm text-ink-500">Já tem uma conta? </span>
+        <span className="text-sm text-ink-500">{t('auth.register.hasAccount')} </span>
         <button
           type="button"
           onClick={onGoToLogin}
           className="text-sm font-semibold text-brand-500 hover:text-brand-600 transition-colors"
         >
-          Entrar
+          {t('auth.register.signIn')}
         </button>
       </div>
 
       <p className="text-xs text-ink-300 text-center mt-6">
-        © {new Date().getFullYear()} Void Mapper. Todos os direitos reservados.
+        {t('auth.copyright', { year: new Date().getFullYear() })}
       </p>
 
     </AuthCard>
