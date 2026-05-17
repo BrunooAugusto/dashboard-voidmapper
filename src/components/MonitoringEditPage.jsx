@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, CalendarDays, Clock, RefreshCw, ClipboardList } from 'lucide-react'
+import { ArrowLeft, CalendarDays, Clock, ClipboardList } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
@@ -8,30 +8,18 @@ import { createMonitoringRow, updateMonitoringRow } from '../services/monitoring
 import { supabase } from '../lib/supabase.js'
 import { useLanguage } from '../contexts/LanguageContext'
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function parseDateToInput(str) {
-  if (!str || str === '—') return ''
-  if (str.includes('T')) return str.split('T')[0]
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
-  const parts = str.split('/')
-  if (parts.length !== 3) return ''
-  const [d, m, y] = parts
-  if (!y || !m || !d) return ''
-  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
-}
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 function formatDateBR(date) {
   if (!date) return '—'
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-function computeSchedule(lastSurveyISO, frequencyDays) {
-  if (!lastSurveyISO || !frequencyDays) return { nextDate: null, daysLeft: null }
+function computeSchedule(latestSurveyDate, frequencyDays) {
+  if (!latestSurveyDate || !frequencyDays) return { nextDate: null, daysLeft: null }
   const freq = parseInt(frequencyDays, 10)
   if (isNaN(freq) || freq <= 0) return { nextDate: null, daysLeft: null }
-  const last = new Date(lastSurveyISO + 'T00:00:00')
-  const next = new Date(last)
+  const next = new Date(latestSurveyDate)
   next.setDate(next.getDate() + freq)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -47,42 +35,20 @@ function getStatus(daysLeft) {
 }
 
 const STATUS_STYLE = {
-  success: {
-    badge:  'bg-success-bg text-success-fg',
-    card:   'bg-success-bg border-success-fg/25',
-    value:  'text-success-fg',
-    dot:    'bg-green-500',
-  },
-  warning: {
-    badge:  'bg-warning-bg text-warning-fg',
-    card:   'bg-warning-bg border-warning-fg/25',
-    value:  'text-warning-fg',
-    dot:    'bg-amber-400',
-  },
-  danger: {
-    badge:  'bg-danger-bg text-danger-fg',
-    card:   'bg-danger-bg border-danger-fg/25',
-    value:  'text-danger-fg',
-    dot:    'bg-red-500',
-  },
-  neutral: {
-    badge:  'bg-page text-ink-500',
-    card:   'border-border-soft bg-surface',
-    value:  'text-ink-400',
-    dot:    'bg-ink-300',
-  },
+  success: { badge: 'bg-success-bg text-success-fg', card: 'bg-success-bg border-success-fg/25', value: 'text-success-fg', dot: 'bg-green-500' },
+  warning: { badge: 'bg-warning-bg text-warning-fg', card: 'bg-warning-bg border-warning-fg/25', value: 'text-warning-fg', dot: 'bg-amber-400' },
+  danger:  { badge: 'bg-danger-bg text-danger-fg',   card: 'bg-danger-bg border-danger-fg/25',   value: 'text-danger-fg',   dot: 'bg-red-500'  },
+  neutral: { badge: 'bg-page text-ink-500',           card: 'border-border-soft bg-surface',      value: 'text-ink-400',     dot: 'bg-ink-300'  },
 }
 
-// ── Summary card (right panel) ────────────────────────────────────────────────
+// ── summary card ──────────────────────────────────────────────────────────────
 
 function SummaryCard({ icon: Icon, label, value, sub, className, valueClass }) {
   return (
     <div className={cn('rounded-[14px] border p-4 transition-colors', className)}>
       <div className="flex items-center gap-1.5 mb-2.5">
         <Icon className="w-3.5 h-3.5 text-ink-400" strokeWidth={1.75} />
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-          {label}
-        </span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">{label}</span>
       </div>
       <p className={cn('font-bold leading-none tabular-nums', valueClass)}>{value}</p>
       {sub && <p className="text-xs text-ink-400 mt-1.5 leading-tight">{sub}</p>}
@@ -90,25 +56,26 @@ function SummaryCard({ icon: Icon, label, value, sub, className, valueClass }) {
   )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── main component ────────────────────────────────────────────────────────────
 
 export default function MonitoringEditPage({ row, onBack }) {
   const { t } = useLanguage()
   const isNew = !row?.id
 
   const [form, setForm] = useState({
-    area:          row?.area          ?? '',
+    area:          row?.area           ?? '',
     projectId:     String(row?.project_id ?? ''),
-    project:       row?.project       ?? '',
-    frequencyDays: String(row?.frequencyDays ?? ''),
-    lastSurvey:    parseDateToInput(row?.lastSurvey ?? ''),
-    surveys:       String(row?.surveys ?? ''),
+    frequencyDays: String(row?.frequency_days ?? row?.frequencyDays ?? ''),
   })
-  const [projects, setProjects] = useState([])
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState(null)
 
-  // Load project list for the picker
+  // project list for the picker
+  const [projects, setProjects]   = useState([])
+  // live data fetched from surveys for the selected project
+  const [liveData, setLiveData]   = useState({ latestSurveyDate: null, surveyCount: 0 })
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState(null)
+
+  // load project list once
   useEffect(() => {
     supabase
       .from('projects')
@@ -118,28 +85,42 @@ export default function MonitoringEditPage({ row, onBack }) {
       .catch(console.error)
   }, [])
 
-  function set(key, val) {
-    setForm((prev) => ({ ...prev, [key]: val }))
-  }
+  // when project changes, fetch its real survey data for the preview
+  useEffect(() => {
+    if (!form.projectId) { setLiveData({ latestSurveyDate: null, surveyCount: 0 }); return }
+    const pid = parseInt(form.projectId, 10)
+    supabase
+      .from('surveys')
+      .select('id, date, created_at')
+      .eq('project_id', pid)
+      .then(({ data }) => {
+        const list = data ?? []
+        const sorted = [...list].sort(
+          (a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)
+        )
+        const latest = sorted[0]
+        setLiveData({
+          latestSurveyDate: latest ? (latest.date || latest.created_at) : null,
+          surveyCount: list.length,
+        })
+      })
+      .catch(console.error)
+  }, [form.projectId])
 
   function handleProjectSelect(e) {
     const pid = e.target.value
-    if (!pid) {
-      setForm(prev => ({ ...prev, projectId: '', project: '' }))
-      return
-    }
-    const p = projects.find(p => String(p.id) === pid)
-    setForm(prev => ({ ...prev, projectId: pid, project: p?.code ?? '' }))
+    setForm(prev => ({ ...prev, projectId: pid }))
   }
 
+  const selectedProject = projects.find(p => String(p.id) === form.projectId) ?? null
+
   const { nextDate, daysLeft } = useMemo(
-    () => computeSchedule(form.lastSurvey, form.frequencyDays),
-    [form.lastSurvey, form.frequencyDays],
+    () => computeSchedule(liveData.latestSurveyDate, form.frequencyDays),
+    [liveData.latestSurveyDate, form.frequencyDays],
   )
 
   const status = getStatus(daysLeft)
   const sc = STATUS_STYLE[status]
-
   const statusLabel = t(`monitoring.status${status.charAt(0).toUpperCase() + status.slice(1)}`)
 
   const daysDisplay =
@@ -155,15 +136,14 @@ export default function MonitoringEditPage({ row, onBack }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!form.projectId) { setError('Selecione um projeto.'); return }
     setLoading(true)
     setError(null)
     const payload = {
       area:          form.area,
-      projectName:   form.project,
-      projectId:     form.projectId ? parseInt(form.projectId, 10) : null,
+      projectId:     parseInt(form.projectId, 10),
+      projectName:   selectedProject?.code ?? '',
       frequencyDays: parseInt(form.frequencyDays, 10),
-      lastSurvey:    form.lastSurvey || null,
-      surveyCount:   parseInt(form.surveys, 10) || 0,
     }
     try {
       if (isNew) {
@@ -198,23 +178,19 @@ export default function MonitoringEditPage({ row, onBack }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_272px] 3xl:grid-cols-[1fr_300px] 4xl:grid-cols-[1fr_340px] gap-5 3xl:gap-6 4xl:gap-8 items-start">
 
-        {/* ── Left: main form card ──────────────────────────────────────── */}
+        {/* ── Left: form card ──────────────────────────────────────────── */}
         <Card>
-
-          {/* Card header — live project identity + status badge */}
+          {/* Card header */}
           <div className="px-6 py-4 border-b border-border-soft flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs text-ink-400 leading-none mb-1 truncate">
                 {form.area || t('monitoring.area')}
               </p>
               <h2 className="text-[17px] font-bold text-ink-900 leading-snug truncate">
-                {form.project || t('monitoring.project')}
+                {selectedProject?.code || (row?.project_name) || t('monitoring.project')}
               </h2>
             </div>
-            <span className={cn(
-              'shrink-0 inline-flex items-center gap-1.5 h-6 px-3 rounded-full text-[11px] font-semibold',
-              sc.badge,
-            )}>
+            <span className={cn('shrink-0 inline-flex items-center gap-1.5 h-6 px-3 rounded-full text-[11px] font-semibold', sc.badge)}>
               <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', sc.dot)} />
               {statusLabel}
             </span>
@@ -226,16 +202,17 @@ export default function MonitoringEditPage({ row, onBack }) {
               <FormField label={t('monitoring.area')}>
                 <FormInput
                   value={form.area}
-                  onChange={(e) => set('area', e.target.value)}
+                  onChange={(e) => setForm(f => ({ ...f, area: e.target.value }))}
                   className="h-[44px]"
                 />
               </FormField>
 
-              {/* Project picker — sets project_id + project_name */}
+              {/* Project picker — sets project_id */}
               <FormField label={t('monitoring.project')}>
                 <select
                   value={form.projectId}
                   onChange={handleProjectSelect}
+                  required
                   className="w-full h-[44px] px-4 rounded-[10px] bg-input-bg border border-border-soft text-sm font-medium text-ink-900 outline-none focus:border-brand-300 focus:bg-surface transition-colors"
                 >
                   <option value="">Selecione um projeto...</option>
@@ -243,11 +220,6 @@ export default function MonitoringEditPage({ row, onBack }) {
                     <option key={p.id} value={p.id}>{p.code}</option>
                   ))}
                 </select>
-                {!form.projectId && form.project && (
-                  <p className="text-[11px] text-ink-400 mt-1">
-                    Valor salvo: <span className="font-medium">{form.project}</span> — selecione acima para vincular.
-                  </p>
-                )}
               </FormField>
 
               <FormField label={t('monitoring.frequency')}>
@@ -256,7 +228,7 @@ export default function MonitoringEditPage({ row, onBack }) {
                     type="number"
                     min="1"
                     value={form.frequencyDays}
-                    onChange={(e) => set('frequencyDays', e.target.value)}
+                    onChange={(e) => setForm(f => ({ ...f, frequencyDays: e.target.value }))}
                     className="h-[44px] pr-14"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-ink-400 pointer-events-none select-none">
@@ -265,35 +237,10 @@ export default function MonitoringEditPage({ row, onBack }) {
                 </div>
               </FormField>
 
-              <FormField label={t('monitoring.lastSurvey')}>
-                <FormInput
-                  type="date"
-                  value={form.lastSurvey}
-                  onChange={(e) => set('lastSurvey', e.target.value)}
-                  className="h-[44px]"
-                />
-              </FormField>
-
-              <FormField label={t('monitoring.surveyCount')}>
-                <FormInput
-                  type="number"
-                  min="0"
-                  value={form.surveys}
-                  onChange={(e) => set('surveys', e.target.value)}
-                  className="h-[44px]"
-                />
-              </FormField>
-
               {/* Computed: next inspection — read-only */}
               <FormField label={t('monitoring.nextInspection')}>
-                <div className={cn(
-                  'h-[44px] px-4 rounded-[10px] border flex items-center justify-between gap-2',
-                  'bg-page border-border-soft',
-                )}>
-                  <span className={cn(
-                    'text-sm font-medium',
-                    nextDate ? 'text-ink-900' : 'text-ink-400',
-                  )}>
+                <div className="h-[44px] px-4 rounded-[10px] border border-border-soft bg-page flex items-center justify-between gap-2">
+                  <span className={cn('text-sm font-medium', nextDate ? 'text-ink-900' : 'text-ink-400')}>
                     {nextDate ? formatDateBR(nextDate) : '—'}
                   </span>
                   <span className="text-[9px] font-bold uppercase tracking-wider text-ink-400 bg-border-soft rounded px-1.5 py-0.5 shrink-0 select-none">
@@ -305,9 +252,7 @@ export default function MonitoringEditPage({ row, onBack }) {
             </div>
 
             <div className="px-6 py-4 border-t border-border-soft flex items-center justify-end gap-3">
-              {error && (
-                <p className="text-sm text-danger-fg mr-auto">{error}</p>
-              )}
+              {error && <p className="text-sm text-danger-fg mr-auto">{error}</p>}
               <button
                 type="button"
                 onClick={onBack}
@@ -327,10 +272,9 @@ export default function MonitoringEditPage({ row, onBack }) {
           </form>
         </Card>
 
-        {/* ── Right: live summary panel ─────────────────────────────────── */}
+        {/* ── Right: live preview panel ─────────────────────────────────── */}
         <div className="flex flex-col gap-3">
 
-          {/* Next inspection date */}
           <SummaryCard
             icon={CalendarDays}
             label={t('monitoring.nextInspection')}
@@ -344,7 +288,6 @@ export default function MonitoringEditPage({ row, onBack }) {
             className="border-border-soft bg-surface"
           />
 
-          {/* Remaining days — colored by status */}
           <SummaryCard
             icon={Clock}
             label={t('monitoring.remainingDays')}
@@ -354,36 +297,31 @@ export default function MonitoringEditPage({ row, onBack }) {
             className={daysLeft !== null ? sc.card : 'border-border-soft bg-surface'}
           />
 
-          {/* Status indicator */}
           <div className={cn('rounded-[14px] border p-4 transition-colors', sc.card)}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">
-              Status
-            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-400 mb-3">Status</p>
             <div className="flex items-center gap-2 mb-1.5">
               <span className={cn('w-2.5 h-2.5 rounded-full shrink-0', sc.dot)} />
-              <span className={cn('text-[15px] font-bold leading-none', sc.value)}>
-                {statusLabel}
-              </span>
+              <span className={cn('text-[15px] font-bold leading-none', sc.value)}>{statusLabel}</span>
             </div>
             {form.frequencyDays && (
-              <p className="text-xs text-ink-400">
-                {t('monitoring.autoCalc')}
-              </p>
+              <p className="text-xs text-ink-400">{t('monitoring.autoCalc')}</p>
             )}
           </div>
 
-          {/* Survey count */}
           <SummaryCard
             icon={ClipboardList}
             label={t('monitoring.surveyCount')}
-            value={form.surveys || '—'}
-            valueClass={form.surveys ? 'text-xl text-ink-900' : 'text-xl text-ink-300'}
-            sub={form.area || undefined}
+            value={form.projectId ? String(liveData.surveyCount) : '—'}
+            valueClass={liveData.surveyCount > 0 ? 'text-xl text-ink-900' : 'text-xl text-ink-300'}
+            sub={
+              liveData.latestSurveyDate
+                ? `Último: ${new Date(liveData.latestSurveyDate).toLocaleDateString('pt-BR')}`
+                : form.projectId ? 'Sem levantamentos registrados' : undefined
+            }
             className="border-border-soft bg-surface"
           />
 
         </div>
-
       </div>
     </>
   )
