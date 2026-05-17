@@ -2,52 +2,57 @@ import { useRef, useState, useEffect } from 'react'
 import { Upload, X, FileImage } from 'lucide-react'
 import { useLanguage } from '../contexts/LanguageContext'
 
-export default function UploadZone({ files = [], onFilesChange }) {
-  const inputRef  = useRef(null)
-  const urlCache  = useRef(new Map())
+export default function UploadZone({ onFilesChange }) {
+  const inputRef = useRef(null)
   const [dragging, setDragging] = useState(false)
+  const [items, setItems] = useState([]) // {id, file, previewUrl, name}[]
   const { t } = useLanguage()
 
-  // Keep URL cache in sync with files — create once per file, revoke on removal
-  useEffect(() => {
-    const currentSet = new Set(files)
-    for (const [file, url] of urlCache.current.entries()) {
-      if (!currentSet.has(file)) {
-        URL.revokeObjectURL(url)
-        urlCache.current.delete(file)
-      }
-    }
-    for (const file of files) {
-      if (!urlCache.current.has(file)) {
-        urlCache.current.set(file, URL.createObjectURL(file))
-      }
-    }
-  }, [files])
-
-  // Revoke all on unmount
+  // Revoke all blob URLs on unmount
   useEffect(() => {
     return () => {
-      for (const url of urlCache.current.values()) URL.revokeObjectURL(url)
+      for (const item of items) {
+        URL.revokeObjectURL(item.previewUrl)
+      }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  function addFiles(newFiles) {
+    const valid = newFiles.filter(f => f.type.startsWith('image/'))
+    if (!valid.length) return
+    const newItems = valid.map(file => ({
+      id:         `${Date.now()}-${Math.random()}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+      name:       file.name,
+    }))
+    setItems(prev => {
+      const next = [...prev, ...newItems]
+      onFilesChange?.(next.map(i => i.file))
+      return next
+    })
+  }
+
+  function removeItem(id) {
+    setItems(prev => {
+      const item = prev.find(i => i.id === id)
+      if (item) URL.revokeObjectURL(item.previewUrl)
+      const next = prev.filter(i => i.id !== id)
+      onFilesChange?.(next.map(i => i.file))
+      return next
+    })
+  }
 
   function handleDrop(e) {
     e.preventDefault()
     setDragging(false)
-    const dropped = Array.from(e.dataTransfer.files).filter((f) =>
-      f.type.startsWith('image/'),
-    )
-    onFilesChange?.([...files, ...dropped])
+    addFiles(Array.from(e.dataTransfer.files))
   }
 
   function handleFileInput(e) {
-    const picked = Array.from(e.target.files)
-    onFilesChange?.([...files, ...picked])
+    addFiles(Array.from(e.target.files))
     e.target.value = ''
-  }
-
-  function removeFile(index) {
-    onFilesChange?.(files.filter((_, i) => i !== index))
   }
 
   return (
@@ -61,7 +66,7 @@ export default function UploadZone({ files = [], onFilesChange }) {
           : 'border-border bg-input-bg'
       }`}
     >
-      {files.length === 0 ? (
+      {items.length === 0 ? (
         <>
           <div className="w-12 h-12 bg-surface rounded-xl flex items-center justify-center border border-border-soft">
             <Upload className="w-6 h-6 text-ink-400" strokeWidth={1.5} />
@@ -81,25 +86,25 @@ export default function UploadZone({ files = [], onFilesChange }) {
       ) : (
         <>
           <div className="w-full flex-1 grid grid-cols-2 gap-3 overflow-y-auto">
-            {files.map((file, i) => (
+            {items.map((item) => (
               <div
-                key={i}
+                key={item.id}
                 className="relative group bg-surface rounded-lg border border-border-soft overflow-hidden aspect-square flex items-center justify-center"
               >
                 <img
-                  src={urlCache.current.get(file) ?? ''}
-                  alt={file.name}
+                  src={item.previewUrl}
+                  alt={item.name}
                   className="w-full h-full object-cover"
                 />
                 <button
                   type="button"
-                  onClick={() => removeFile(i)}
+                  onClick={() => removeItem(item.id)}
                   className="absolute top-1 right-1 w-6 h-6 bg-black/50 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="w-3 h-3" />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
-                  <p className="text-white text-[10px] truncate">{file.name}</p>
+                  <p className="text-white text-[10px] truncate">{item.name}</p>
                 </div>
               </div>
             ))}

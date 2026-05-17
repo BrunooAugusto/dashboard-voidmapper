@@ -144,7 +144,7 @@ const t = {
     'form.fileName':          'Nome do Arquivo',
     'form.status':            'Status do Projeto',
     'form.notes':             'Observações no Escaneamento',
-    'form.notesCreate':       'Scanning Observações',
+    'form.notesCreate':       'Observações do Escaneamento',
     'form.projectLink':       'Link do Projeto',
     'form.save':              'Salvar Projeto',
     'form.cancel':            'Cancelar',
@@ -174,7 +174,7 @@ const t = {
     'reports.date':            'Data',
     'reports.lastSurvey':      'Último Levantamento',
     'reports.surveys':         'Levantamentos',
-    'reports.notes':           'Scanning Observações',
+    'reports.notes':           'Observações do Escaneamento',
     'reports.viewDeformation': 'Ver Deformação',
 
     // ── Monitoring page ─────────────────────────────────────────────────────

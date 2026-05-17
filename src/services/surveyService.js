@@ -43,7 +43,7 @@ export async function getRecentSurveys() {
 
   const { data, error } = await supabase
     .from('surveys')
-    .select('*, projects(statuses)')
+    .select('*, projects(statuses, project_length)')
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: false })
   if (error) throw new Error(error.message)
@@ -54,6 +54,12 @@ export async function getRecentSurveys() {
       Array.isArray(ps) && ps.length > 0
         ? ps.map(st => ({ variant: st.variant }))
         : [{ variant: s.status ?? 'success' }]
+
+    const rawMetering =
+      s.metering ||
+      (s.projects?.project_length != null ? String(s.projects.project_length) : null)
+    const metering = rawMetering ? `${rawMetering} m` : '—'
+
     return {
       id:       s.id,
       local:    s.local,
@@ -61,7 +67,7 @@ export async function getRecentSurveys() {
       statuses,
       date:     new Date(s.created_at).toLocaleDateString('pt-BR'),
       surveys:  s.count,
-      metering: s.metering ?? '—',
+      metering,
     }
   })
 }

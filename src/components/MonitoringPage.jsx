@@ -7,12 +7,33 @@ import { cn } from '../lib/cn'
 import { getMonitoringRows } from '../services/monitoringService'
 import { useLanguage } from '../contexts/LanguageContext'
 
-function getDaysStatus(daysUntilNext, frequencyDays) {
-  if (daysUntilNext === null || daysUntilNext === undefined) return 'neutral'
-  const freq = parseInt(frequencyDays) || 7
-  if (daysUntilNext < 0)  return 'danger'
-  if (daysUntilNext <= Math.max(2, Math.floor(freq * 0.3))) return 'warning'
+function getDaysStatus(days) {
+  if (days === null || days === undefined) return 'neutral'
+  if (days <= 0) return 'danger'
+  if (days <= 3) return 'warning'
   return 'success'
+}
+
+function formatDaysLabel(days) {
+  if (days === null || days === undefined) return '—'
+  if (days === 0) return 'Hoje'
+  if (days > 0) return `${days} dia${days === 1 ? '' : 's'}`
+  const n = Math.abs(days)
+  return `Vencido há ${n} dia${n === 1 ? '' : 's'}`
+}
+
+const BADGE_CLASS = {
+  success: 'bg-success-bg text-success-fg',
+  warning: 'bg-warning-bg text-warning-fg',
+  danger:  'bg-danger-bg text-danger-fg',
+  neutral: 'bg-page text-ink-400',
+}
+
+const DOT_CLASS = {
+  success: 'bg-success-fg',
+  warning: 'bg-warning-fg',
+  danger:  'bg-danger-fg',
+  neutral: 'bg-ink-300',
 }
 
 export default function MonitoringPage({ onBack, onSelectRow, onNew }) {
@@ -77,7 +98,8 @@ export default function MonitoringPage({ onBack, onSelectRow, onNew }) {
               </tr>
             )}
             {rows.map((row, i) => {
-              const status = getDaysStatus(row.daysUntilNext, row.frequencyDays)
+              const status = getDaysStatus(row.daysUntilNext)
+              const label  = formatDaysLabel(row.daysUntilNext)
               const isLast = i === rows.length - 1
               return (
                 <TableRow key={row.id ?? i} isLast={isLast} onClick={() => onSelectRow?.(row)}>
@@ -86,16 +108,14 @@ export default function MonitoringPage({ onBack, onSelectRow, onNew }) {
                   <TableCell muted align="center">{row.frequencyDays}</TableCell>
                   <TableCell>{row.lastSurvey}</TableCell>
                   <TableCell muted align="center">{row.surveys}</TableCell>
-                  <td
-                    className={cn(
-                      'px-4 align-middle text-sm text-center font-semibold',
-                      status === 'danger'  && 'bg-danger-fg text-white',
-                      status === 'warning' && 'bg-warning-bg text-warning-fg',
-                      status === 'success' && 'text-ink-900 font-normal',
-                      status === 'neutral' && 'text-ink-400 font-normal',
-                    )}
-                  >
-                    {row.daysUntilNext ?? '—'}
+                  <td className="px-4 py-2.5 align-middle text-center">
+                    <span className={cn(
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap',
+                      BADGE_CLASS[status],
+                    )}>
+                      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', DOT_CLASS[status])} />
+                      {label}
+                    </span>
                   </td>
                 </TableRow>
               )

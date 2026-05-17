@@ -1,18 +1,23 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { ArrowLeft, CalendarDays, Clock, RefreshCw, ClipboardList } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
 import { cn } from '../lib/cn'
 import { createMonitoringRow, updateMonitoringRow } from '../services/monitoringService'
+import { supabase } from '../lib/supabase.js'
 import { useLanguage } from '../contexts/LanguageContext'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseDateToInput(str) {
-  if (!str) return ''
-  if (str.includes('-')) return str
-  const [d, m, y] = str.split('/')
+  if (!str || str === '—') return ''
+  if (str.includes('T')) return str.split('T')[0]
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
+  const parts = str.split('/')
+  if (parts.length !== 3) return ''
+  const [d, m, y] = parts
+  if (!y || !m || !d) return ''
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
@@ -34,11 +39,10 @@ function computeSchedule(lastSurveyISO, frequencyDays) {
   return { nextDate: next, daysLeft }
 }
 
-function getStatus(daysLeft, frequencyDays) {
+function getStatus(daysLeft) {
   if (daysLeft === null) return 'neutral'
-  const freq = parseInt(frequencyDays, 10) || 7
-  if (daysLeft < 0) return 'danger'
-  if (daysLeft <= Math.max(2, Math.floor(freq * 0.3))) return 'warning'
+  if (daysLeft <= 0) return 'danger'
+  if (daysLeft <= 3) return 'warning'
   return 'success'
 }
 
@@ -94,16 +98,38 @@ export default function MonitoringEditPage({ row, onBack }) {
 
   const [form, setForm] = useState({
     area:          row?.area          ?? '',
+    projectId:     String(row?.project_id ?? ''),
     project:       row?.project       ?? '',
     frequencyDays: String(row?.frequencyDays ?? ''),
     lastSurvey:    parseDateToInput(row?.lastSurvey ?? ''),
     surveys:       String(row?.surveys ?? ''),
   })
-  const [loading, setLoading] = useState(false)
-  const [error, setError]     = useState(null)
+  const [projects, setProjects] = useState([])
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState(null)
+
+  // Load project list for the picker
+  useEffect(() => {
+    supabase
+      .from('projects')
+      .select('id, code')
+      .order('code', { ascending: true })
+      .then(({ data }) => setProjects(data ?? []))
+      .catch(console.error)
+  }, [])
 
   function set(key, val) {
     setForm((prev) => ({ ...prev, [key]: val }))
+  }
+
+  function handleProjectSelect(e) {
+    const pid = e.target.value
+    if (!pid) {
+      setForm(prev => ({ ...prev, projectId: '', project: '' }))
+      return
+    }
+    const p = projects.find(p => String(p.id) === pid)
+    setForm(prev => ({ ...prev, projectId: pid, project: p?.code ?? '' }))
   }
 
   const { nextDate, daysLeft } = useMemo(
@@ -111,7 +137,7 @@ export default function MonitoringEditPage({ row, onBack }) {
     [form.lastSurvey, form.frequencyDays],
   )
 
-  const status = getStatus(daysLeft, form.frequencyDays)
+  const status = getStatus(daysLeft)
   const sc = STATUS_STYLE[status]
 
   const statusLabel = t(`monitoring.status${status.charAt(0).toUpperCase() + status.slice(1)}`)
@@ -134,6 +160,7 @@ export default function MonitoringEditPage({ row, onBack }) {
     const payload = {
       area:          form.area,
       projectName:   form.project,
+      projectId:     form.projectId ? parseInt(form.projectId, 10) : null,
       frequencyDays: parseInt(form.frequencyDays, 10),
       lastSurvey:    form.lastSurvey || null,
       surveyCount:   parseInt(form.surveys, 10) || 0,
@@ -204,12 +231,23 @@ export default function MonitoringEditPage({ row, onBack }) {
                 />
               </FormField>
 
+              {/* Project picker — sets project_id + project_name */}
               <FormField label={t('monitoring.project')}>
-                <FormInput
-                  value={form.project}
-                  onChange={(e) => set('project', e.target.value)}
-                  className="h-[44px]"
-                />
+                <select
+                  value={form.projectId}
+                  onChange={handleProjectSelect}
+                  className="w-full h-[44px] px-4 rounded-[10px] bg-input-bg border border-border-soft text-sm font-medium text-ink-900 outline-none focus:border-brand-300 focus:bg-surface transition-colors"
+                >
+                  <option value="">Selecione um projeto...</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.code}</option>
+                  ))}
+                </select>
+                {!form.projectId && form.project && (
+                  <p className="text-[11px] text-ink-400 mt-1">
+                    Valor salvo: <span className="font-medium">{form.project}</span> — selecione acima para vincular.
+                  </p>
+                )}
               </FormField>
 
               <FormField label={t('monitoring.frequency')}>

@@ -85,6 +85,7 @@ export default function App() {
   const [selectedProject, setSelectedProject]       = useState(null)
   const [editingMonitoringRow, setEditingMonitoringRow] = useState(null)
   const [projectsKey, setProjectsKey]               = useState(0)
+  const [monitoringKey, setMonitoringKey]           = useState(0)
 
   function setUserProfile(profile) {
     setUserProfileRaw(sanitizeProfile(profile))
@@ -222,12 +223,13 @@ export default function App() {
         return (
           <MonitoringEditPage
             row={editingMonitoringRow}
-            onBack={() => setEditingMonitoringRow(null)}
+            onBack={() => { setMonitoringKey(k => k + 1); setEditingMonitoringRow(null) }}
           />
         )
       }
       return (
         <MonitoringPage
+          key={monitoringKey}
           onBack={() => handleNavigate('dashboard')}
           onSelectRow={(row) => setEditingMonitoringRow(row)}
           onNew={() => setEditingMonitoringRow({})}

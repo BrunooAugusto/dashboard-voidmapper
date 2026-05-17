@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { ArrowLeft, Camera, ImagePlus } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
@@ -26,69 +26,11 @@ const EMPTY_FORM = {
   projectLink: '',
 }
 
-function MeasurementImageSlot({ src, onChange }) {
-  const inputRef = useRef(null)
-  const { t } = useLanguage()
-
-  function handleFileChange(e) {
-    const file = e.target.files?.[0]
-    if (file) onChange(URL.createObjectURL(file))
-    e.target.value = ''
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-ink-900">{t('form.measurementImage')}</span>
-      <div
-        className={cn(
-          'relative group rounded-xl overflow-hidden aspect-[16/9]',
-          src ? 'bg-zinc-900' : 'bg-input-bg border-2 border-dashed border-border',
-        )}
-      >
-        {src ? (
-          <>
-            <img src={src} alt="Metragem" className="w-full h-full object-contain" />
-            <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <button
-                type="button"
-                title={t('form.changeMeasurementImage')}
-                onClick={() => inputRef.current?.click()}
-                className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white hover:bg-brand-600 transition-colors"
-              >
-                <Camera className="w-4 h-4" strokeWidth={2} />
-              </button>
-            </div>
-            <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/70 pointer-events-none">
-              {t('form.changeMeasurementImage')}
-            </span>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="w-full h-full flex flex-col items-center justify-center gap-2 text-ink-400 hover:text-brand-500 transition-colors"
-          >
-            <ImagePlus className="w-5 h-5" strokeWidth={1.75} />
-            <span className="text-xs font-medium">{t('form.addMeasurementImage')}</span>
-          </button>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </div>
-    </div>
-  )
-}
 
 export default function CreateProjectPage({ onBack }) {
   const { t } = useLanguage()
   const [form, setForm] = useState(EMPTY_FORM)
   const [files, setFiles] = useState([])
-  const [measurementSrc, setMeasurementSrc] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -258,8 +200,7 @@ export default function CreateProjectPage({ onBack }) {
 
             {/* Right column: project images + measurement image */}
             <div className="flex flex-col gap-5">
-              <UploadZone files={files} onFilesChange={setFiles} />
-              <MeasurementImageSlot src={measurementSrc} onChange={setMeasurementSrc} />
+              <UploadZone onFilesChange={setFiles} />
             </div>
 
           </div>

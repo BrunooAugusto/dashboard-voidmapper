@@ -59,7 +59,7 @@ function transformMonRow(r) {
     ...r,
     project:    r.projectName,
     surveys:    r.surveyCount,
-    lastSurvey: r.lastSurvey ? new Date(r.lastSurvey).toLocaleDateString('pt-BR') : '—',
+    lastSurvey: r.lastSurvey ?? '—',
   }
 }
 

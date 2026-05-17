@@ -4,6 +4,7 @@ import Card from './Card'
 import MetaCard from './MetaCard'
 import StatusBadge from './StatusBadge'
 import ImageCarousel from './ImageCarousel'
+import { cn } from '../lib/cn'
 import { getProjectById, getProjectSurveys } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 
@@ -63,15 +64,29 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
       </div>
 
       <Card>
-        <div className="p-4 sm:p-5 flex flex-col gap-4">
+        <div className="p-4 sm:p-5 flex flex-col gap-3">
 
-          {/* 1 — Project header: code + status + edit button */}
+          {/* ── Header: code + statuses + rehab pill + edit button ── */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center flex-wrap gap-2 min-w-0">
               <span className="text-lg font-semibold text-ink-900 truncate">{code}</span>
               {statuses.map((s, i) => (
                 <StatusBadge key={i} variant={s.variant}>{t('status.' + s.variant)}</StatusBadge>
               ))}
+              {rehabStatus && (
+                <span className={cn(
+                  'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border',
+                  rehabStatus === 'rehabilitated'
+                    ? 'bg-[#EEF2FF] border-[#6366F1]/20 text-[#4F46E5]'
+                    : 'bg-warning-bg border-warning-fg/20 text-warning-fg',
+                )}>
+                  <span className={cn(
+                    'w-1.5 h-1.5 rounded-full',
+                    rehabStatus === 'rehabilitated' ? 'bg-[#6366F1]' : 'bg-warning-fg',
+                  )} />
+                  {rehabStatus === 'rehabilitated' ? 'Reabilitado' : 'Em Reabilitação'}
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -83,107 +98,105 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
             </button>
           </div>
 
-          {/* 2 — File name + meta stats */}
-          <div className="bg-page border border-border-soft rounded-lg p-3 flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1.5">
+          {/* ── Two-column body ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+
+            {/* Left column: info + actions + history */}
+            <div className="flex flex-col gap-3">
+
+              {/* Filename — compact single row */}
+              <div className="flex items-center gap-2 bg-page border border-border-soft rounded-lg px-3 py-2 min-w-0">
                 <FileText className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
-                <span className="text-xs font-medium text-ink-500">{t('detail.fileName')}</span>
+                <span className="text-[11px] font-medium text-ink-500 shrink-0">{t('detail.fileName')}</span>
+                <span className="text-[11px] font-mono text-ink-700 truncate" title={d?.fileName ?? ''}>
+                  {d?.fileName ?? '—'}
+                </span>
               </div>
-              <p className="text-[11px] font-mono text-ink-700 break-all leading-relaxed pl-5">
-                {d?.fileName ?? '—'}
-              </p>
-            </div>
 
-            <div className="h-px bg-border-soft" />
-
-            <div className="grid grid-cols-3 3xl:grid-cols-4 gap-2 3xl:gap-3">
-              <MetaCard label={t('detail.lastSurvey')}   value={d?.date ?? '—'} />
-              <MetaCard label={t('detail.surveysCount')} value={String(surveyCount)} />
-              <MetaCard label={t('detail.totalArea')}    value={d?.metragem ? `${d.metragem} m` : '—'} />
-            </div>
-          </div>
-
-          {/* 3 — Rehabilitation status (only when project has warning status) */}
-          {rehabStatus && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-warning-bg border border-warning-fg/20">
-              <span className="w-2 h-2 rounded-full bg-warning-fg shrink-0" />
-              <span className="text-xs font-semibold text-warning-fg">
-                {rehabStatus === 'rehabilitated' ? 'Reabilitado' : 'Em Reabilitação'}
-              </span>
-            </div>
-          )}
-
-          {/* 4 — Observations */}
-          {d?.notes && (
-            <div className="bg-page border border-border-soft rounded-lg p-3 flex flex-col gap-2">
-              <span className="text-sm font-semibold text-ink-900">{t('detail.notes')}</span>
-              <p className="text-xs text-ink-500 leading-relaxed">{d.notes}</p>
-            </div>
-          )}
-
-          {/* 4 — Action buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {projectUrl ? (
-              <button
-                type="button"
-                onClick={() => window.open(projectUrl, '_blank', 'noopener,noreferrer')}
-                className="h-10 flex items-center justify-center rounded-full bg-brand-500 text-white text-sm font-semibold hover:bg-brand-600 transition-colors"
-              >
-                {t('detail.projectLink')}
-              </button>
-            ) : (
-              <div className="h-10 flex items-center justify-center rounded-full bg-surface border border-border-soft text-sm font-medium text-ink-400 select-none cursor-not-allowed">
-                {t('detail.noProjectLink')}
+              {/* 3 meta cards in a row */}
+              <div className="grid grid-cols-3 gap-2">
+                <MetaCard label={t('detail.lastSurvey')}   value={d?.date ?? '—'} />
+                <MetaCard label={t('detail.surveysCount')} value={String(surveyCount)} />
+                <MetaCard label={t('detail.totalArea')}    value={d?.metragem ? `${d.metragem} m` : '—'} />
               </div>
-            )}
-            <button
-              type="button"
-              className="h-10 flex items-center justify-center rounded-full border border-border-soft text-sm font-medium text-ink-700 hover:bg-page transition-colors"
-            >
-              {t('detail.detonationAreas')}
-            </button>
-          </div>
 
-          {/* 5 — Survey history */}
-          {surveys.length > 0 && (
-            <div className="border-t border-border-soft pt-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
-                <span className="text-xs font-semibold text-ink-700">Histórico de Levantamentos</span>
-                <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">{surveys.length}</span>
-              </div>
-              <div className="flex flex-col divide-y divide-border-soft rounded-lg border border-border-soft overflow-hidden">
-                {surveys.map((s, i) => (
-                  <div key={s.id ?? i} className="flex items-center gap-3 px-3 py-2.5 bg-page text-xs">
-                    <span className="font-mono text-ink-400 shrink-0 w-5 text-right">{i + 1}</span>
-                    <span className="font-medium text-ink-700 truncate flex-1" title={s.file}>{s.file || '—'}</span>
-                    <span className="text-ink-400 shrink-0">
-                      {s.createdAt
-                        ? new Date(s.createdAt).toLocaleDateString('pt-BR')
-                        : s.date
-                          ? new Date(s.date).toLocaleDateString('pt-BR')
-                          : '—'}
-                    </span>
-                    {s.metering && (
-                      <span className="text-ink-400 shrink-0">{s.metering} m</span>
-                    )}
+              {/* Notes */}
+              {d?.notes && (
+                <div className="bg-page border border-border-soft rounded-lg px-3 py-2.5">
+                  <p className="text-xs text-ink-500 leading-relaxed">{d.notes}</p>
+                </div>
+              )}
+
+              {/* Action buttons — always side by side */}
+              <div className="grid grid-cols-2 gap-2">
+                {projectUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => window.open(projectUrl, '_blank', 'noopener,noreferrer')}
+                    className="h-9 flex items-center justify-center rounded-full bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+                  >
+                    {t('detail.projectLink')}
+                  </button>
+                ) : (
+                  <div className="h-9 flex items-center justify-center rounded-full bg-surface border border-border-soft text-xs font-medium text-ink-400 select-none cursor-not-allowed">
+                    {t('detail.noProjectLink')}
                   </div>
-                ))}
+                )}
+                <button
+                  type="button"
+                  className="h-9 flex items-center justify-center rounded-full border border-border-soft text-xs font-medium text-ink-700 hover:bg-page transition-colors"
+                >
+                  {t('detail.detonationAreas')}
+                </button>
               </div>
-            </div>
-          )}
 
-          {/* 6 — Image gallery (always visible) */}
-          <div className="border-t border-border-soft pt-4">
-            {images.length > 0 ? (
-              <ImageCarousel images={images} />
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2 py-8 text-ink-400">
-                <Image className="w-8 h-8 opacity-40" strokeWidth={1.5} />
-                <span className="text-sm">{t('detail.noImages')}</span>
-              </div>
-            )}
+              {/* Survey history — compact with scroll cap */}
+              {surveys.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
+                    <span className="text-xs font-semibold text-ink-700">Histórico de Levantamentos</span>
+                    <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">
+                      {surveys.length}
+                    </span>
+                  </div>
+                  <div className="flex flex-col divide-y divide-border-soft rounded-lg border border-border-soft overflow-hidden max-h-[220px] overflow-y-auto">
+                    {surveys.map((s, i) => (
+                      <div key={s.id ?? i} className="flex items-center gap-3 px-3 py-2 bg-page text-xs">
+                        <span className="font-mono text-ink-400 shrink-0 w-5 text-right">{i + 1}</span>
+                        <span className="font-medium text-ink-700 truncate flex-1" title={s.file}>
+                          {s.file || '—'}
+                        </span>
+                        <span className="text-ink-400 shrink-0">
+                          {s.createdAt
+                            ? new Date(s.createdAt).toLocaleDateString('pt-BR')
+                            : s.date
+                              ? new Date(s.date).toLocaleDateString('pt-BR')
+                              : '—'}
+                        </span>
+                        {s.metering && (
+                          <span className="text-ink-400 shrink-0">{s.metering} m</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Right column: image gallery */}
+            <div>
+              {images.length > 0 ? (
+                <ImageCarousel images={images} />
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 py-12 text-ink-400 bg-page border border-border-soft rounded-lg">
+                  <Image className="w-8 h-8 opacity-40" strokeWidth={1.5} />
+                  <span className="text-sm">{t('detail.noImages')}</span>
+                </div>
+              )}
+            </div>
+
           </div>
 
         </div>

@@ -24,10 +24,11 @@ function catmullRom(pts, tension = 0.4) {
 
 function niceMax(v) {
   if (v === 0) return 4
+  // strict < so the max data point always has headroom and never touches the top grid line
   for (const n of [4, 6, 8, 10, 12, 15, 16, 20, 24, 25, 30, 32, 40, 50, 60, 80, 100]) {
-    if (v <= n) return n
+    if (v < n) return n
   }
-  return Math.ceil(v / 10) * 10
+  return Math.ceil(v / 10) * 10 + 10
 }
 
 function TipRow({ dot, label, value }) {
@@ -112,7 +113,7 @@ export default function SurveyAreaChart({ data }) {
             4px extra at the bottom prevents the stroke from being sliced at y=0.
           */}
           <clipPath id={clipId}>
-            <rect x={0} y={PAD.top} width={dims.width} height={chartH + 4} />
+            <rect x={0} y={PAD.top - 8} width={dims.width} height={chartH + 12} />
           </clipPath>
         </defs>
 

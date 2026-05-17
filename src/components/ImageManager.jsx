@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Camera, X, ImagePlus } from 'lucide-react'
 import { cn } from '../lib/cn'
 import { useLanguage } from '../contexts/LanguageContext'
@@ -73,6 +73,15 @@ export default function ImageManager({ images = [], onChange }) {
   const addInputRef = useRef(null)
   const { t } = useLanguage()
 
+  useEffect(() => {
+    return () => {
+      for (const img of images) {
+        if (img.src?.startsWith('blob:')) URL.revokeObjectURL(img.src)
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function handleAdd(e) {
     const newFiles = Array.from(e.target.files ?? []).filter((f) =>
       f.type.startsWith('image/'),
@@ -87,6 +96,8 @@ export default function ImageManager({ images = [], onChange }) {
   }
 
   function handleReplace(index, file) {
+    const old = images[index]
+    if (old?.src?.startsWith('blob:')) URL.revokeObjectURL(old.src)
     const updated = images.map((img, i) =>
       i === index ? { ...img, src: URL.createObjectURL(file), file } : img,
     )
@@ -94,6 +105,8 @@ export default function ImageManager({ images = [], onChange }) {
   }
 
   function handleRemove(index) {
+    const img = images[index]
+    if (img?.src?.startsWith('blob:')) URL.revokeObjectURL(img.src)
     onChange(images.filter((_, i) => i !== index))
   }
 

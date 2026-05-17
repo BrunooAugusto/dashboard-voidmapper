@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { ArrowLeft, Camera, ImagePlus } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
@@ -47,70 +47,13 @@ function buildInitialImages(project) {
     .filter(img => img.src)
 }
 
-function MeasurementImageSlot({ src, onChange }) {
-  const inputRef = useRef(null)
-  const { t } = useLanguage()
-
-  function handleFileChange(e) {
-    const file = e.target.files?.[0]
-    if (file) onChange(URL.createObjectURL(file))
-    e.target.value = ''
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium text-ink-900">{t('form.measurementImage')}</span>
-      <div
-        className={cn(
-          'relative group rounded-xl overflow-hidden aspect-[16/9]',
-          src ? 'bg-zinc-900' : 'bg-input-bg border-2 border-dashed border-border',
-        )}
-      >
-        {src ? (
-          <>
-            <img src={src} alt="Metragem" className="w-full h-full object-contain" />
-            <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <button
-                type="button"
-                title={t('form.changeMeasurementImage')}
-                onClick={() => inputRef.current?.click()}
-                className="w-10 h-10 rounded-full bg-brand-500 flex items-center justify-center text-white hover:bg-brand-600 transition-colors"
-              >
-                <Camera className="w-4 h-4" strokeWidth={2} />
-              </button>
-            </div>
-            <span className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/70 pointer-events-none">
-              {t('form.changeMeasurementImage')}
-            </span>
-          </>
-        ) : (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="w-full h-full flex flex-col items-center justify-center gap-2 text-ink-400 hover:text-brand-500 transition-colors"
-          >
-            <ImagePlus className="w-5 h-5" strokeWidth={1.75} />
-            <span className="text-xs font-medium">{t('form.addMeasurementImage')}</span>
-          </button>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          className="hidden"
-          onChange={handleFileChange}
-        />
-      </div>
-    </div>
-  )
-}
 
 export default function EditProjectPage({ project, onBack }) {
   const { t } = useLanguage()
   const [form, setForm] = useState(() => buildInitialForm(project))
   const [images, setImages] = useState(() => buildInitialImages(project))
   const initialImages = useRef(buildInitialImages(project)).current
-  const [measurementSrc, setMeasurementSrc] = useState(null)
+  const [registerSurvey, setRegisterSurvey] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -135,7 +78,7 @@ export default function EditProjectPage({ project, onBack }) {
         projectUrl:           form.projectLink || null,
         level:                form.level       ? parseInt(form.level, 10) : null,
         rehabilitationStatus: form.rehabilitationStatus || null,
-      })
+      }, { registerSurvey })
 
       // Delete images that were removed from the manager
       const removed = initialImages.filter(init => !images.find(img => img.id === init.id))
@@ -321,6 +264,36 @@ export default function EditProjectPage({ project, onBack }) {
                 </div>
               </FormField>
 
+              {/* Register as new survey toggle */}
+              <FormField label="Registrar como novo levantamento?">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterSurvey(false)}
+                    className={cn(
+                      'h-[52px] flex items-center justify-center gap-2 px-4 rounded-[10px] border text-sm font-medium transition-colors',
+                      !registerSurvey
+                        ? 'bg-surface border-brand-300 text-ink-900 ring-1 ring-brand-300'
+                        : 'bg-input-bg border-border-soft text-ink-400 hover:bg-page',
+                    )}
+                  >
+                    Não
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRegisterSurvey(true)}
+                    className={cn(
+                      'h-[52px] flex items-center justify-center gap-2 px-4 rounded-[10px] border text-sm font-medium transition-colors',
+                      registerSurvey
+                        ? 'bg-surface border-brand-300 text-ink-900 ring-1 ring-brand-300'
+                        : 'bg-input-bg border-border-soft text-ink-400 hover:bg-page',
+                    )}
+                  >
+                    Sim
+                  </button>
+                </div>
+              </FormField>
+
               <FormField label={t('form.notes')}>
                 <textarea
                   value={form.notes}
@@ -362,10 +335,9 @@ export default function EditProjectPage({ project, onBack }) {
               </div>
             </div>
 
-            {/* Right column: project images + measurement image */}
+            {/* Right column: project images */}
             <div className="flex flex-col gap-5">
               <ImageManager images={images} onChange={setImages} />
-              <MeasurementImageSlot src={measurementSrc} onChange={setMeasurementSrc} />
             </div>
 
           </div>

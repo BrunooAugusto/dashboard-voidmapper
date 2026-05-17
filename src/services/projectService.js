@@ -105,18 +105,13 @@ export async function createProject(payload) {
     status:     (Array.isArray(statuses) && statuses[0]?.variant) ? statuses[0].variant : 'success',
     date:       date ? new Date(date).toISOString() : new Date().toISOString(),
     count:      Number(surveyCount) || 1,
-    metering:   metragem ?? null,
+    metering:   metragem ?? (projectLength != null ? String(projectLength) : null),
   })
 
   return transform(project)
 }
 
-export async function updateProject(id, payload) {
-  // Fetch existing for comparison
-  const { data: existing, error: fetchErr } = await supabase
-    .from('projects').select('*').eq('id', id).single()
-  if (fetchErr) throw new Error(fetchErr.message)
-
+export async function updateProject(id, payload, { registerSurvey = false } = {}) {
   const {
     code, statuses, date, surveyCount, metragem,
     fileName, notes, projectUrl, projectLength, level, rehabilitationStatus,
@@ -135,28 +130,11 @@ export async function updateProject(id, payload) {
   if (level            !== undefined) updates.level                = level != null ? parseInt(level, 10) : null
   if (rehabilitationStatus !== undefined) updates.rehabilitation_status = rehabilitationStatus ?? null
 
-  // Auto-default rehab status when warning added and no existing rehab status
-  if (rehabilitationStatus === undefined && statuses !== undefined) {
-    const hasWarning = Array.isArray(statuses) && statuses.some(s => s.variant === 'warning')
-    if (hasWarning && !existing.rehabilitation_status) {
-      updates.rehabilitation_status = 'in_progress'
-    }
-  }
-
   const { data: updated, error } = await supabase
     .from('projects').update(updates).eq('id', id).select().single()
   if (error) throw new Error(error.message)
 
-  // Auto-create survey if key fields changed
-  const dateChanged     = date        !== undefined && new Date(date).toDateString() !== new Date(existing.date).toDateString()
-  const fileChanged     = fileName    !== undefined && fileName !== existing.file_name
-  const meteringChanged = projectLength !== undefined && nullableFloat(projectLength) !== (existing.project_length ?? null)
-  const countChanged    = surveyCount !== undefined && Number(surveyCount) !== existing.survey_count
-  const newV = (statuses ?? []).map(s => s.variant).sort().join(',')
-  const oldV = (Array.isArray(existing.statuses) ? existing.statuses : []).map(s => s.variant).sort().join(',')
-  const statusChanged   = statuses    !== undefined && newV !== oldV
-
-  if (dateChanged || fileChanged || meteringChanged || countChanged || statusChanged) {
+  if (registerSurvey) {
     const surveyStatus = Array.isArray(updated.statuses) && updated.statuses[0]?.variant
       ? updated.statuses[0].variant : 'success'
     await supabase.from('surveys').insert({
@@ -168,6 +146,11 @@ export async function updateProject(id, payload) {
       count:      updated.survey_count || 1,
       metering:   updated.project_length ? String(updated.project_length) : null,
     })
+    // Increment survey count
+    await supabase
+      .from('projects')
+      .update({ survey_count: (updated.survey_count ?? 0) + 1 })
+      .eq('id', id)
   }
 
   return transform(updated)
