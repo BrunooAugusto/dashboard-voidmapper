@@ -3,18 +3,24 @@ import { ChevronDown } from 'lucide-react'
 import { cn } from '../lib/cn'
 import Card from './Card'
 import ProjectCard from './ProjectCard'
+import ConfirmModal from './ConfirmModal'
 import SearchInput from './SearchInput'
-import { getProjects, deleteProject } from '../services/projectService'
+import { getProjects, deleteProjectCascade } from '../services/projectService'
+import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage } from '../contexts/LanguageContext'
 
 const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6) // 6..24
 
-export default function ProjectsPage({ onSelectProject, onNavigate }) {
+export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
+  const perms = usePermissions(user)
   const { t } = useLanguage()
-  const [search,       setSearch]       = useState('')
-  const [activeFilter, setActiveFilter] = useState(null)
-  const [activeLevel,  setActiveLevel]  = useState('')   // '' = all
-  const [projects,     setProjects]     = useState([])
+  const [search,          setSearch]          = useState('')
+  const [activeFilter,    setActiveFilter]    = useState(null)
+  const [activeLevel,     setActiveLevel]     = useState('')
+  const [projects,        setProjects]        = useState([])
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [deleting,        setDeleting]        = useState(false)
+  const [deleteErr,       setDeleteErr]       = useState(null)
 
   useEffect(() => {
     getProjects().then(setProjects).catch(console.error)
@@ -38,7 +44,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
 
     const matchesStatus = !activeFilter || statuses.some(s => s.variant === activeFilter)
 
-    const matchesLevel  = activeLevel === '' || (p.level != null && p.level === parseInt(activeLevel, 10))
+    const matchesLevel = activeLevel === '' || (p.level != null && p.level === parseInt(activeLevel, 10))
 
     return matchesSearch && matchesStatus && matchesLevel
   })
@@ -47,9 +53,24 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
     setActiveFilter((prev) => (prev === key ? null : key))
   }
 
-  async function handleDelete(id) {
-    await deleteProject(id)
-    setProjects(prev => prev.filter(p => p.id !== id))
+  async function handleDeleteConfirm() {
+    setDeleting(true)
+    setDeleteErr(null)
+    try {
+      await deleteProjectCascade(pendingDeleteId)
+      setProjects(prev => prev.filter(p => p.id !== pendingDeleteId))
+      setPendingDeleteId(null)
+    } catch (err) {
+      setDeleteErr(err?.message ?? 'Erro ao excluir projeto')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  function handleDeleteCancel() {
+    if (deleting) return
+    setPendingDeleteId(null)
+    setDeleteErr(null)
   }
 
   return (
@@ -64,6 +85,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+{perms.canCreateProject && (
           <button
             type="button"
             onClick={() => onNavigate?.('novo-projeto')}
@@ -71,12 +93,12 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
           >
             {t('projects.newProject')}
           </button>
+          )}
         </div>
       </div>
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        {/* Level dropdown */}
         <div className="relative inline-flex items-center">
           <select
             value={activeLevel}
@@ -96,7 +118,6 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
           <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-500" strokeWidth={2} />
         </div>
 
-        {/* Status filter chips */}
         {FILTER_CHIPS.map((f) => (
           <button
             key={f.key}
@@ -123,7 +144,8 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
                 key={p.id}
                 project={p}
                 onClick={() => onSelectProject?.(p)}
-                onDelete={handleDelete}
+                onDelete={id => setPendingDeleteId(id)}
+                canDelete={perms.canDeleteProject}
               />
             ))}
           </div>
@@ -133,6 +155,17 @@ export default function ProjectsPage({ onSelectProject, onNavigate }) {
           </div>
         )}
       </Card>
+
+      {/* Centered delete confirmation modal */}
+      {pendingDeleteId && (
+        <ConfirmModal
+          message="Tem certeza que deseja excluir este projeto? Esta ação removerá levantamentos, imagens e monitoramentos vinculados."
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+          loading={deleting}
+          error={deleteErr}
+        />
+      )}
     </>
   )
 }

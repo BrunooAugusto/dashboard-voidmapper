@@ -2,40 +2,21 @@ import { useState, useRef, useEffect } from 'react'
 import { MoreHorizontal, Trash2 } from 'lucide-react'
 import StatusBadge from './StatusBadge'
 import { useLanguage } from '../contexts/LanguageContext'
-import { cn } from '../lib/cn'
 
-export default function ProjectCard({ project, onClick, onDelete }) {
+export default function ProjectCard({ project, onClick, onDelete, canDelete = true }) {
   const { t } = useLanguage()
   const label = project.surveys === 1 ? t('projects.survey') : t('projects.surveys')
-  const [menuOpen,   setMenuOpen]   = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [deleting,   setDeleting]   = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
 
-  // Close menu on outside click
   useEffect(() => {
     if (!menuOpen) return
     function handle(e) {
-      if (!menuRef.current?.contains(e.target)) {
-        setMenuOpen(false)
-        setConfirming(false)
-      }
+      if (!menuRef.current?.contains(e.target)) setMenuOpen(false)
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [menuOpen])
-
-  async function handleDelete(e) {
-    e.stopPropagation()
-    setDeleting(true)
-    try {
-      await onDelete?.(project.id)
-    } finally {
-      setDeleting(false)
-      setMenuOpen(false)
-      setConfirming(false)
-    }
-  }
 
   return (
     <div
@@ -52,11 +33,12 @@ export default function ProjectCard({ project, onClick, onDelete }) {
           ))}
         </div>
 
-        {/* Three-dots button */}
+        {/* Three-dots button — only shown when user can delete */}
+        {canDelete && (
         <div ref={menuRef} className="relative shrink-0">
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); setConfirming(false) }}
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v) }}
             className="w-7 h-7 flex items-center justify-center rounded-md text-ink-400 hover:bg-page hover:text-ink-700 transition-colors"
           >
             <MoreHorizontal className="w-4 h-4" strokeWidth={2} />
@@ -64,43 +46,18 @@ export default function ProjectCard({ project, onClick, onDelete }) {
 
           {menuOpen && (
             <div className="absolute right-0 top-8 z-20 min-w-[160px] bg-surface border border-border-soft rounded-[10px] shadow-lg overflow-hidden">
-              {!confirming ? (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger-fg hover:bg-danger-bg transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
-                  Deletar projeto
-                </button>
-              ) : (
-                <div onClick={e => e.stopPropagation()} className="p-3 flex flex-col gap-2">
-                  <p className="text-xs font-medium text-ink-700">Tem certeza? Esta ação não pode ser desfeita.</p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={handleDelete}
-                      disabled={deleting}
-                      className={cn(
-                        'flex-1 h-7 rounded-md bg-danger-bg text-danger-fg text-xs font-semibold transition-colors',
-                        deleting ? 'opacity-50' : 'hover:brightness-95',
-                      )}
-                    >
-                      {deleting ? '...' : 'Deletar'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setConfirming(false) }}
-                      className="flex-1 h-7 rounded-md border border-border-soft text-ink-600 text-xs font-medium hover:bg-page transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete?.(project.id) }}
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger-fg hover:bg-danger-bg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                Deletar projeto
+              </button>
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Project info */}

@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase.js'
+import { formatSurveyDate, sortSurveysByDateDesc } from '../lib/surveyDates.js'
 
 // ── Dashboard metrics ────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ export async function getRecentSurveys() {
       local:    s.local,
       file:     s.file || '—',
       statuses,
-      date:     new Date(s.created_at).toLocaleDateString('pt-BR'),
+      date:     formatSurveyDate(s.date || s.created_at),
       surveys:  s.count,
       metering,
     }
@@ -96,23 +97,22 @@ const ORDERED_DAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 const MONTH_LABELS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 function aggEntry(label) {
-  return { label, surveys: 0, approved: 0, deformations: 0, rehabilitating: 0, errors: 0 }
+  return { label, metragem: 0 }
 }
 
-function tallySurvey(entry, s) {
-  entry.surveys++
-  if      (s.status === 'danger')  entry.deformations++
-  else if (s.status === 'warning') entry.rehabilitating++
-  else if (s.status === 'info')    entry.errors++
-  else                              entry.approved++
+function tallyMetragem(entry, s) {
+  const raw = s.metering ?? (s.projects?.project_length != null ? String(s.projects.project_length) : null)
+  if (!raw) return
+  const val = parseFloat(raw)
+  if (!isNaN(val) && val > 0) entry.metragem += val
 }
 
-function aggregateChartData(surveys, period) {
+export function aggregateChartData(surveys, period) {
   if (period === 'weekly') {
     const map = Object.fromEntries(ORDERED_DAYS.map(d => [d, aggEntry(d)]))
     for (const s of surveys) {
       const label = DAY_LABELS[new Date(s.created_at).getDay()]
-      if (map[label]) tallySurvey(map[label], s)
+      if (map[label]) tallyMetragem(map[label], s)
     }
     return ORDERED_DAYS.map(d => map[d])
   }
@@ -120,13 +120,13 @@ function aggregateChartData(surveys, period) {
     const weeks = [aggEntry('Sem 1'), aggEntry('Sem 2'), aggEntry('Sem 3'), aggEntry('Sem 4')]
     for (const s of surveys) {
       const day = new Date(s.created_at).getDate()
-      tallySurvey(weeks[Math.min(Math.floor((day - 1) / 7), 3)], s)
+      tallyMetragem(weeks[Math.min(Math.floor((day - 1) / 7), 3)], s)
     }
     return weeks
   }
   // annual
   const map = Object.fromEntries(MONTH_LABELS.map((m, i) => [i, aggEntry(m)]))
-  for (const s of surveys) tallySurvey(map[new Date(s.created_at).getMonth()], s)
+  for (const s of surveys) tallyMetragem(map[new Date(s.created_at).getMonth()], s)
   return MONTH_LABELS.map((_, i) => map[i])
 }
 
@@ -148,7 +148,7 @@ export async function getSurveyAnalytics(period = 'weekly', month) {
 
   let query = supabase
     .from('surveys')
-    .select('created_at, status')
+    .select('id, date, created_at, metering, projects(project_length)')
     .gte('created_at', since.toISOString())
     .order('created_at', { ascending: true })
   if (until) query = query.lte('created_at', until.toISOString())

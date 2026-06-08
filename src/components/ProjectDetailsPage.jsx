@@ -1,18 +1,25 @@
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Pencil, FileText, Image, Clock } from 'lucide-react'
+﻿import { useState, useEffect } from 'react'
+import { ArrowLeft, Pencil, Trash2, FileText, Image, Clock } from 'lucide-react'
 import Card from './Card'
 import MetaCard from './MetaCard'
 import StatusBadge from './StatusBadge'
 import ImageCarousel from './ImageCarousel'
+import ConfirmModal from './ConfirmModal'
 import { cn } from '../lib/cn'
-import { getProjectById, getProjectSurveys } from '../services/projectService'
+import { getProjectById, getProjectSurveys, deleteProjectCascade } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
+import { getProjectAuditLogs, ACTION_LABELS } from '../services/auditService'
+import { formatSurveyDate } from '../lib/surveyDates.js'
 
-export default function ProjectDetailsPage({ project, onBack, onEdit }) {
+export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete }) {
   const { t } = useLanguage()
-  const [detail, setDetail]   = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [surveys, setSurveys] = useState([])
+  const [detail, setDetail]       = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [surveys, setSurveys]     = useState([])
+  const [confirming, setConfirming] = useState(false)
+  const [deleting,   setDeleting]   = useState(false)
+  const [deleteErr,  setDeleteErr]  = useState(null)
+  const [auditLogs,  setAuditLogs]   = useState([])
 
   useEffect(() => {
     if (!project?.id) { setLoading(false); return }
@@ -20,12 +27,26 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
     Promise.all([
       getProjectById(project.id),
       getProjectSurveys(project.id).catch(() => []),
-    ]).then(([proj, srvs]) => {
+      getProjectAuditLogs(project.id).catch(() => []),
+    ]).then(([proj, srvs, logs]) => {
       setDetail(proj)
       setSurveys(srvs)
+      setAuditLogs(logs)
     }).catch(() => setDetail(null))
       .finally(() => setLoading(false))
   }, [project?.id])
+
+  async function handleDelete() {
+    setDeleting(true)
+    setDeleteErr(null)
+    try {
+      await deleteProjectCascade(project.id)
+      onDelete?.()
+    } catch (err) {
+      setDeleteErr(err?.message ?? 'Erro ao excluir projeto')
+      setDeleting(false)
+    }
+  }
 
   const d = detail ?? project
   const code = d?.code ?? '—'
@@ -49,6 +70,16 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
 
   return (
     <>
+      {confirming && (
+        <ConfirmModal
+          message="Tem certeza que deseja excluir este projeto? Esta ação removerá levantamentos, imagens e monitoramentos vinculados."
+          onConfirm={handleDelete}
+          onCancel={() => { if (!deleting) { setConfirming(false); setDeleteErr(null) } }}
+          loading={deleting}
+          error={deleteErr}
+        />
+      )}
+
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-4">
         <button
@@ -88,14 +119,23 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => onEdit?.(d)}
-              className="shrink-0 h-8 px-3 flex items-center gap-1.5 rounded-full bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
-            >
-              <Pencil className="w-3 h-3" strokeWidth={2} />
-              {t('detail.editProject')}
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onEdit?.(d)}
+                className="h-8 px-3 flex items-center gap-1.5 rounded-full bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
+              >
+                <Pencil className="w-3 h-3" strokeWidth={2} />
+                {t('detail.editProject')}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirming(true); setDeleteErr(null) }}
+                className="h-8 w-8 flex items-center justify-center rounded-full border border-border-soft text-danger-fg hover:bg-danger-bg transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+            </div>
           </div>
 
           {/* ── Two-column body ── */}
@@ -168,11 +208,7 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
                           {s.file || '—'}
                         </span>
                         <span className="text-ink-400 shrink-0">
-                          {s.createdAt
-                            ? new Date(s.createdAt).toLocaleDateString('pt-BR')
-                            : s.date
-                              ? new Date(s.date).toLocaleDateString('pt-BR')
-                              : '—'}
+                          {formatSurveyDate(s.date || s.createdAt)}
                         </span>
                         {s.metering && (
                           <span className="text-ink-400 shrink-0">{s.metering} m</span>
@@ -201,6 +237,45 @@ export default function ProjectDetailsPage({ project, onBack, onEdit }) {
 
         </div>
       </Card>
+
+      {/* Historico de Atualizacoes */}
+      <div className="mt-4">
+        <Card>
+          <div className="p-4 sm:p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="w-4 h-4 text-ink-400 shrink-0" strokeWidth={1.75} />
+              <span className="text-sm font-semibold text-ink-700">Historico de Atualizacoes</span>
+              {auditLogs.length > 0 && (
+                <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">
+                  {auditLogs.length}
+                </span>
+              )}
+            </div>
+            {auditLogs.length === 0 ? (
+              <p className="text-sm text-ink-400 italic">Nenhuma atualizacao registrada para este projeto.</p>
+            ) : (
+              <div className="flex flex-col divide-y divide-border-soft max-h-[320px] overflow-y-auto">
+                {auditLogs.map((log, i) => (
+                  <div key={log.id ?? i} className="py-2.5 flex flex-col gap-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-ink-700">
+                        {ACTION_LABELS[log.action] ?? log.action}
+                      </span>
+                      <span className="text-[10px] text-ink-400 shrink-0">
+                        {new Date(log.created_at).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                    </div>
+                    {log.description && (
+                      <p className="text-xs text-ink-500 leading-relaxed">{log.description}</p>
+                    )}
+                    <span className="text-[10px] text-ink-400">{log.user_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
     </>
   )
 }

@@ -22,12 +22,14 @@ function toUser(sbUser, profile) {
     role:            profile?.role            ?? 'Usuário',
     initials:        profile?.initials        ?? buildInitials(profile?.name ?? ''),
     profileComplete: profile?.profile_complete ?? false,
+    appRole:         profile?.app_role ?? undefined,
   }
 }
 
 export async function login({ email, password }) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) throw new Error(error.message)
+  await upsertProfile(data.user.id, { email: data.user.email }).catch(() => {})
   const profile = await fetchProfile(data.user.id)
   return toUser(data.user, profile)
 }
@@ -61,7 +63,23 @@ export async function forgotPassword({ email }) {
 export async function getMe() {
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) throw new Error('Sessão expirada. Faça login novamente.')
-  const profile = await fetchProfile(user.id)
+  let profile = await fetchProfile(user.id)
+  if (!profile) {
+    // Auto-create profile for users who registered before the profiles table existed
+    const name = user.user_metadata?.name ?? ''
+    await upsertProfile(user.id, {
+      name,
+      email:            user.email,
+      initials:         buildInitials(name),
+      role:             'Usuário',
+      profile_complete: false,
+    }).catch(console.error)
+    profile = await fetchProfile(user.id)
+  } else if (!profile.email) {
+    // Sync email if missing (after ADMIN_SETUP migration)
+    await upsertProfile(user.id, { email: user.email }).catch(console.error)
+    profile = { ...profile, email: user.email }
+  }
   return toUser(user, profile)
 }
 

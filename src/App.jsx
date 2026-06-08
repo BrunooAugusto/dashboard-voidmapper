@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import * as authService from './services/authService'
 import { setUnauthorizedHandler } from './services/api'
@@ -16,6 +16,7 @@ import MonitoringPage from './components/MonitoringPage'
 import MonitoringEditPage from './components/MonitoringEditPage'
 import ProfileEditPage from './components/ProfileEditPage'
 import SettingsPage from './components/SettingsPage'
+import AdminPage   from './components/AdminPage'
 import LoginPage from './components/auth/LoginPage'
 import RegisterPage from './components/auth/RegisterPage'
 import ForgotPasswordPage from './components/auth/ForgotPasswordPage'
@@ -196,6 +197,7 @@ export default function App() {
           project={selectedProject}
           onBack={() => handleNavigate('projetos')}
           onEdit={handleEditProject}
+          onDelete={() => { setProjectsKey(k => k + 1); handleNavigate('projetos') }}
         />
       )
     }
@@ -205,6 +207,7 @@ export default function App() {
           key={projectsKey}
           onSelectProject={handleSelectProject}
           onNavigate={handleNavigate}
+          user={userProfile}
         />
       )
     }
@@ -233,8 +236,19 @@ export default function App() {
           onBack={() => handleNavigate('dashboard')}
           onSelectRow={(row) => setEditingMonitoringRow(row)}
           onNew={() => setEditingMonitoringRow({})}
+          user={userProfile}
         />
       )
+    }
+    if (activeNav === 'admin') {
+      if (userProfile.email?.toLowerCase() !== 'baoliveira@aga.gold') {
+        return (
+          <div className="flex items-center justify-center h-full min-h-[60vh]">
+            <p className="text-ink-500 text-base">Você não tem permissão para acessar esta área.</p>
+          </div>
+        )
+      }
+      return <AdminPage user={userProfile} />
     }
     if (activeNav === 'settings') {
       return (

@@ -7,7 +7,7 @@ const t = {
     'nav.newProject':  'Novo Projeto',
     'nav.monitoring':      'Monitorados',
     'nav.weeklyReport':    'Relatório Semanal',
-    'nav.support':     'Suporte',
+    'nav.admin':       'Administração',
     'nav.settings':    'Configurações',
 
     // ── Common ──────────────────────────────────────────────────────────────
@@ -79,11 +79,12 @@ const t = {
     'kpi.newProject':     '+ Novo Projeto',
 
     // ── Chart ───────────────────────────────────────────────────────────────
-    'chart.title':    'Análise de Levantamentos',
-    'chart.subtitle': 'Acompanhe levantamentos por semana, mês ou ano',
+    'chart.title':    'Metragem Levantada',
+    'chart.subtitle': 'Metragem total levantada por período',
     'chart.tab.weekly':    'Semanal',
     'chart.tab.monthly':   'Mensal',
     'chart.tab.annual':    'Anual',
+    'chart.tooltip.metragem':       'Metragem',
     'chart.tooltip.total':          'Total',
     'chart.tooltip.approved':       'Aprovados',
     'chart.tooltip.deformations':   'Deformações',
@@ -298,7 +299,7 @@ const t = {
     'nav.newProject':  'New Project',
     'nav.monitoring':      'Monitoring',
     'nav.weeklyReport':    'Weekly Report',
-    'nav.support':     'Support',
+    'nav.admin':       'Administration',
     'nav.settings':    'Settings',
 
     // ── Common ──────────────────────────────────────────────────────────────
@@ -370,11 +371,12 @@ const t = {
     'kpi.newProject':     '+ New Project',
 
     // ── Chart ───────────────────────────────────────────────────────────────
-    'chart.title':    'Survey Analytics',
-    'chart.subtitle': 'Track surveys by week, month or year',
+    'chart.title':    'Surveyed Length',
+    'chart.subtitle': 'Total surveyed length per period',
     'chart.tab.weekly':    'Weekly',
     'chart.tab.monthly':   'Monthly',
     'chart.tab.annual':    'Annual',
+    'chart.tooltip.metragem':       'Length',
     'chart.tooltip.total':          'Total',
     'chart.tooltip.approved':       'Approved',
     'chart.tooltip.deformations':   'Deformations',

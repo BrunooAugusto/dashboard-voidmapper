@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   User, Monitor, Shield, Sun, Moon, Globe, Bell,
-  Laptop, Smartphone, ChevronDown, ChevronUp, Pencil, LogOut,
+  ChevronDown, ChevronUp, Pencil, LogOut
 } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
@@ -103,11 +103,6 @@ function SettingRow({ label, description, children, borderless = false }) {
   )
 }
 
-const SESSION_DATA = [
-  { id: 1, Device: Laptop,     name: 'MacBook Pro',  browser: 'Chrome 124', location: 'São Paulo, BR',      time: 'Ativo agora',  current: true  },
-  { id: 2, Device: Smartphone, name: 'iPhone 15',    browser: 'Safari 17',  location: 'São Paulo, BR',      time: 'Há 2 horas',   current: false },
-  { id: 3, Device: Laptop,     name: 'Windows PC',   browser: 'Edge 123',   location: 'Belo Horizonte, BR', time: 'Há 1 dia',     current: false },
-]
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -122,7 +117,6 @@ export default function SettingsPage({ user, onSave, onNavigate, onLogout }) {
     initials: user.initials,
   })
   const [notifications,  setNotifications]  = useState(true)
-  const [twoFactor,      setTwoFactor]      = useState(false)
   const [showPassword,   setShowPassword]   = useState(false)
   const [passwords,      setPasswords]      = useState({ current: '', next: '', confirm: '' })
   const [pwLoading,      setPwLoading]      = useState(false)
@@ -265,7 +259,6 @@ export default function SettingsPage({ user, onSave, onNavigate, onLogout }) {
               options={[
                 { value: 'light',  label: t('settings.system.themeLight'),  icon: Sun     },
                 { value: 'dark',   label: t('settings.system.themeDark'),   icon: Moon    },
-                { value: 'system', label: t('settings.system.themeSystem'), icon: Monitor },
               ]}
             />
           </PreferenceRow>
@@ -368,68 +361,6 @@ export default function SettingsPage({ user, onSave, onNavigate, onLogout }) {
             </div>
           )}
 
-          {/* Active sessions */}
-          <SettingRow
-            label={t('settings.security.activeSessions')}
-            description={t('settings.security.devicesConnected', { count: SESSION_DATA.length })}
-          >
-            <span className="h-6 px-2.5 rounded-full bg-brand-500/15 text-brand-500 text-xs font-semibold inline-flex items-center">
-              {t('settings.security.activeCount', { count: SESSION_DATA.length })}
-            </span>
-          </SettingRow>
-
-          <div className="flex flex-col gap-2 pb-4 border-b border-border-soft">
-            {SESSION_DATA.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg bg-page"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <s.Device className="w-4 h-4 text-ink-400 shrink-0" strokeWidth={1.75} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-ink-900 leading-none truncate">
-                      {s.name} · {s.browser}
-                    </p>
-                    <p className="text-[11px] text-ink-500 mt-0.5 truncate">
-                      {s.location} · {s.time}
-                    </p>
-                  </div>
-                </div>
-                {s.current ? (
-                  <span className="text-[11px] font-semibold text-success-fg bg-success-bg px-2 py-0.5 rounded-full shrink-0">
-                    {t('settings.security.thisDevice')}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    className="text-[11px] font-medium text-ink-400 hover:text-danger-fg transition-colors shrink-0"
-                  >
-                    {t('settings.security.signOut')}
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          {/* 2FA */}
-          <div className="pt-4">
-            <div className="flex items-center justify-between gap-6">
-              <div>
-                <p className="text-sm font-medium text-ink-900">
-                  {t('settings.security.twoFactor')}
-                </p>
-                <p className="text-xs text-ink-500 mt-0.5">
-                  {t('settings.security.twoFactorDesc')}
-                </p>
-              </div>
-              <Toggle checked={twoFactor} onChange={setTwoFactor} />
-            </div>
-            {twoFactor && (
-              <p className="text-xs font-medium text-success-fg mt-3">
-                {t('settings.security.twoFactorActive')}
-              </p>
-            )}
-          </div>
         </div>
       </Card>
 

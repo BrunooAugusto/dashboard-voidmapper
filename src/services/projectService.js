@@ -1,4 +1,6 @@
-import { supabase } from '../lib/supabase.js'
+﻿import { supabase } from '../lib/supabase.js'
+import { logAction } from './auditService.js'
+import { getLatestSurveyDate, sortSurveysByDateDesc, formatDateBR, debugSurveyDates } from '../lib/surveyDates.js'
 
 function toLocaleDatePT(iso) {
   if (!iso) return '—'
@@ -14,7 +16,6 @@ function nullableFloat(v) {
 function transform(p) {
   return {
     ...p,
-    // camelCase aliases so UI code doesn't break
     surveys:              p.survey_count  ?? 0,
     surveyCount:          p.survey_count  ?? 0,
     date:                 toLocaleDatePT(p.date),
@@ -51,15 +52,18 @@ export async function getProjectById(id) {
     .single()
   if (error) throw new Error(error.message)
   const base = transform(data)
+  const rawSurveys = data.surveys ?? []
+  const sortedSurveys = sortSurveysByDateDesc(rawSurveys).slice(0, 10)
+  debugSurveyDates(rawSurveys, `project[${id}]`)
+  const latestDate = getLatestSurveyDate(rawSurveys)
   return {
     ...base,
+    // Override project.date with the real latest survey date
+    date: latestDate ? formatDateBR(latestDate) : base.date,
     images: (data.project_images ?? [])
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(img => ({ id: img.id, url: img.url, src: img.url })),
-    surveys: (data.surveys ?? [])
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 10)
-      .map(s => ({ ...s, createdAt: s.created_at })),
+    surveys: sortedSurveys.map(s => ({ ...s, createdAt: s.created_at })),
   }
 }
 
@@ -108,6 +112,16 @@ export async function createProject(payload) {
     metering:   metragem ?? (projectLength != null ? String(projectLength) : null),
   })
 
+  logAction({
+    action: 'create_project',
+    entityType: 'project',
+    entityId: project.id,
+    entityName: project.code,
+    projectId: project.id,
+    description: `Criou o projeto ${project.code}`,
+    newValue: { code: project.code },
+  })
+
   return transform(project)
 }
 
@@ -153,12 +167,129 @@ export async function updateProject(id, payload, { registerSurvey = false } = {}
       .eq('id', id)
   }
 
+  // Audit: general edit
+  logAction({
+    action: 'edit_project',
+    entityType: 'project',
+    entityId: id,
+    entityName: updated.code,
+    projectId: id,
+    description: `Editou o projeto ${updated.code}`,
+    newValue: updates,
+  })
+
+  // Audit: status change
+  if (statuses !== undefined) {
+    logAction({
+      action: 'change_status',
+      entityType: 'project',
+      entityId: id,
+      entityName: updated.code,
+      projectId: id,
+      description: `Alterou status do projeto ${updated.code}`,
+      newValue: { statuses },
+    })
+  }
+
+  // Audit: rehab status change
+  if (rehabilitationStatus !== undefined) {
+    logAction({
+      action: 'change_rehab',
+      entityType: 'project',
+      entityId: id,
+      entityName: updated.code,
+      projectId: id,
+      description: `Alterou reabilitação do projeto ${updated.code}`,
+      newValue: { rehabilitation_status: rehabilitationStatus },
+    })
+  }
+
   return transform(updated)
 }
 
 export async function deleteProject(id) {
   const { error } = await supabase.from('projects').delete().eq('id', id)
   if (error) throw new Error(error.message)
+  return { success: true }
+}
+
+export async function deleteProjectCascade(projectId) {
+  console.log('[delete] Starting cascade delete for project', projectId)
+
+  // Fetch project code for audit log before deletion
+  const { data: _proj } = await supabase
+    .from('projects').select('code').eq('id', projectId).maybeSingle()
+  const _code = _proj?.code ?? String(projectId)
+
+  // Fetch image records first so we can clean up Storage
+  const { data: images } = await supabase
+    .from('project_images').select('url').eq('project_id', projectId)
+
+  if (images?.length) {
+    const paths = images
+      .map(img => img.url?.split('/project-images/')[1])
+      .filter(Boolean)
+      .map(p => decodeURIComponent(p))
+    if (paths.length) {
+      const { error: storageErr } = await supabase.storage.from('project-images').remove(paths)
+      if (storageErr) console.warn('[delete] storage files:', storageErr.message)
+      else console.log('[delete] Deleted storage files:', paths.length)
+    }
+  }
+
+  // Delete surveys
+  {
+    const { error } = await supabase.from('surveys').delete().eq('project_id', projectId)
+    if (error) console.warn('[delete] surveys:', error.message)
+    else console.log('[delete] Deleted surveys')
+  }
+
+  // Delete project_images rows
+  {
+    const { error } = await supabase.from('project_images').delete().eq('project_id', projectId)
+    if (error) console.warn('[delete] project_images:', error.message)
+    else console.log('[delete] Deleted project_images')
+  }
+
+  // Delete monitoring
+  {
+    const { error } = await supabase.from('monitoring').delete().eq('project_id', projectId)
+    if (error) console.warn('[delete] monitoring:', error.message)
+    else console.log('[delete] Deleted monitoring')
+  }
+
+  // Delete monitoring_projects (junction table - may not exist)
+  {
+    const { error } = await supabase.from('monitoring_projects').delete().eq('project_id', projectId)
+    if (error) console.warn('[delete] monitoring_projects:', error.message)
+    else console.log('[delete] Deleted monitoring_projects')
+  }
+
+  // Optional tables (status_history)
+  {
+    const { error } = await supabase.from('status_history').delete().eq('project_id', projectId)
+    if (error) console.warn('[delete] status_history:', error.message)
+    else console.log('[delete] Deleted status_history')
+  }
+
+  // Delete the project itself
+  const { error } = await supabase.from('projects').delete().eq('id', projectId)
+  if (error) {
+    console.error('[delete] Failed to delete project:', error.message, error)
+    throw new Error(error.message)
+  }
+  console.log('[delete] Project deleted successfully')
+
+  // Audit log after deletion (audit_logs preserved — no FK to projects)
+  logAction({
+    action: 'delete_project',
+    entityType: 'project',
+    entityId: projectId,
+    entityName: _code,
+    projectId: projectId,
+    description: `Excluiu o projeto ${_code}`,
+  })
+
   return { success: true }
 }
 
@@ -182,6 +313,16 @@ export async function uploadProjectImage(projectId, file) {
     .select().single()
   if (dbErr) throw new Error(dbErr.message)
 
+  logAction({
+    action: 'add_image',
+    entityType: 'image',
+    entityId: image.id,
+    entityName: path,
+    projectId: projectId,
+    description: `Adicionou imagem ao projeto`,
+    newValue: { url: image.url },
+  })
+
   return { id: image.id, url: image.url, src: image.url }
 }
 
@@ -194,6 +335,14 @@ export async function deleteProjectImage(projectId, imageId) {
   }
   const { error } = await supabase.from('project_images').delete().eq('id', imageId)
   if (error) throw new Error(error.message)
+
+  logAction({
+    action: 'remove_image',
+    entityType: 'image',
+    entityId: imageId,
+    projectId: projectId,
+    description: `Removeu imagem do projeto`,
+  })
 }
 
 export async function getProjectSurveys(projectId) {
@@ -201,10 +350,10 @@ export async function getProjectSurveys(projectId) {
     .from('surveys')
     .select('*')
     .eq('project_id', projectId)
-    .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(100)
   if (error) throw new Error(error.message)
-  return (data ?? []).map(s => ({ ...s, createdAt: s.created_at }))
+  // Sort client-side using parseLocalDate to avoid UTC shift
+  return sortSurveysByDateDesc(data ?? []).slice(0, 20).map(s => ({ ...s, createdAt: s.created_at }))
 }
 
 export async function addSurveyToProject(projectId, payload) {
@@ -224,6 +373,16 @@ export async function addSurveyToProject(projectId, payload) {
     metering:   metering ?? null,
   }).select().single()
   if (error) throw new Error(error.message)
+
+  logAction({
+    action: 'create_survey',
+    entityType: 'survey',
+    entityId: data.id,
+    entityName: file ?? project?.file_name ?? String(projectId),
+    projectId: projectId,
+    description: `Adicionou levantamento ao projeto ${project?.code ?? projectId}`,
+    newValue: { file, count, metering },
+  })
 
   // Increment survey count
   const { data: p } = await supabase.from('projects').select('survey_count').eq('id', projectId).single()

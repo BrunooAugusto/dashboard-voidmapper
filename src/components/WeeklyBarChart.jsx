@@ -23,12 +23,13 @@ function catmullRom(pts, tension = 0.4) {
 }
 
 function niceMax(v) {
-  if (v === 0) return 4
-  // strict < so the max data point always has headroom and never touches the top grid line
-  for (const n of [4, 6, 8, 10, 12, 15, 16, 20, 24, 25, 30, 32, 40, 50, 60, 80, 100]) {
-    if (v < n) return n
+  if (v <= 0) return 500
+  const mag = Math.pow(10, Math.floor(Math.log10(v)))
+  const normalized = v / mag
+  for (const n of [1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
+    if (normalized < n) return Math.round(n * mag)
   }
-  return Math.ceil(v / 10) * 10 + 10
+  return Math.round(10 * mag)
 }
 
 function TipRow({ dot, label, value }) {
@@ -69,7 +70,7 @@ export default function SurveyAreaChart({ data }) {
   const chartH = dims.height - PAD.top  - PAD.bottom
   const bottomY = PAD.top + chartH
 
-  const max = useMemo(() => niceMax(Math.max(...data.map((d) => d.surveys), 0)), [data])
+  const max = useMemo(() => niceMax(Math.max(...data.map((d) => d.metragem ?? 0), 0)), [data])
   const ticks = useMemo(() => {
     const step = max / 4
     return [0, step, step * 2, step * 3, max]
@@ -79,7 +80,7 @@ export default function SurveyAreaChart({ data }) {
     () =>
       data.map((d, i) => ({
         x: PAD.left + X_INNER + (data.length <= 1 ? (chartW - 2 * X_INNER) / 2 : (i / (data.length - 1)) * (chartW - 2 * X_INNER)),
-        y: PAD.top  + (max > 0 ? (1 - d.surveys / max) * chartH : chartH),
+        y: PAD.top  + (max > 0 ? (1 - (d.metragem ?? 0) / max) * chartH : chartH),
       })),
     [data, chartW, chartH, max],
   )
@@ -234,11 +235,7 @@ export default function SurveyAreaChart({ data }) {
           >
             <p className="text-xs font-semibold text-ink-900 mb-2">{item.label}</p>
             <div className="flex flex-col gap-1.5">
-              <TipRow dot="bg-brand-500"   label={t('chart.tooltip.total')}          value={item.surveys} />
-              <TipRow dot="bg-emerald-500" label={t('chart.tooltip.approved')}       value={item.approved ?? '–'} />
-              <TipRow dot="bg-orange-700"  label={t('chart.tooltip.deformations')}   value={item.deformations} />
-              <TipRow dot="bg-amber-500"   label={t('chart.tooltip.rehabilitating')} value={item.rehabilitating ?? 0} />
-              <TipRow dot="bg-blue-500"    label={t('chart.tooltip.errors')}         value={item.errors ?? 0} />
+              <TipRow dot="bg-brand-500" label={t('chart.tooltip.metragem')} value={`${Math.round(item.metragem ?? 0)} m`} />
             </div>
           </div>
         )

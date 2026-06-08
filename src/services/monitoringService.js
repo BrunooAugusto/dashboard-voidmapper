@@ -1,31 +1,38 @@
-import { supabase } from '../lib/supabase.js'
+﻿import { supabase } from '../lib/supabase.js'
+import {
+  parseLocalDate,
+  getLatestSurveyDate,
+  sortSurveysByDateDesc,
+  formatDateBR,
+  debugSurveyDates,
+} from '../lib/surveyDates.js'
 
 // ── pure helpers ──────────────────────────────────────────────────────────────
 
-function daysUntil(dateStr, frequencyDays) {
-  const next = new Date(dateStr)
-  next.setDate(next.getDate() + frequencyDays)
+function daysUntil(latestDate, frequencyDays) {
+  if (!latestDate || !frequencyDays) return null
+  // latestDate is already a Date object (local-normalized)
+  const last = new Date(latestDate.getTime())
+  last.setHours(0, 0, 0, 0)
+  const next = new Date(last.getTime())
+  next.setDate(next.getDate() + Number(frequencyDays))
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   return Math.ceil((next.getTime() - today.getTime()) / 86_400_000)
 }
 
 function statusFromDays(days) {
-  if (days === null) return { color: 'neutral', label: 'Sem levantamento' }
-  if (days === 0)    return { color: 'danger',  label: 'Hoje' }
-  if (days < 0)      return { color: 'danger',  label: `Vencido há ${Math.abs(days)} dia${Math.abs(days) === 1 ? '' : 's'}` }
-  if (days <= 3)     return { color: 'warning', label: `${days} dia${days === 1 ? '' : 's'}` }
-  return               { color: 'success', label: `${days} dia${days === 1 ? '' : 's'}` }
+  if (days === null || days === undefined) return { color: 'neutral', label: 'Sem levantamento' }
+  if (days === 0) return { color: 'danger',  label: 'Hoje' }
+  if (days < 0)   return { color: 'danger',  label: `Vencido há ${Math.abs(days)} dia${Math.abs(days) === 1 ? '' : 's'}` }
+  if (days <= 3)  return { color: 'warning', label: `${days} dia${days === 1 ? '' : 's'}` }
+  return            { color: 'success', label: `${days} dia${days === 1 ? '' : 's'}` }
 }
 
 // ── getMonitoringRows ─────────────────────────────────────────────────────────
-//
-// Returns an array of rows. Every computed field (last survey, count, days)
-// comes exclusively from the `surveys` table — never from stored monitoring
-// columns (last_survey, survey_count) or project.survey_count.
-//
 export async function getMonitoringRows() {
-  // ── 1. fetch monitoring config rows ────────────────────────────────────────
+
+  // 1. Fetch all monitoring config rows
   const { data: monitorings, error: me } = await supabase
     .from('monitoring')
     .select('id, area, project_id, project_name, frequency_days')
@@ -33,28 +40,40 @@ export async function getMonitoringRows() {
   if (me) throw new Error(me.message)
   if (!monitorings?.length) return []
 
-  // ── 2. collect all linked project_ids ──────────────────────────────────────
-  const projectIds = [...new Set(monitorings.map(m => m.project_id).filter(Boolean))]
+  // 2. Fetch ALL projects for ID-lookup and name-based fallback
+  const { data: allProjects, error: pe } = await supabase
+    .from('projects')
+    .select('id, code')
+  if (pe) console.error('[monitoring] projects error:', pe.message)
 
-  // ── 3. fetch those projects ────────────────────────────────────────────────
-  const projectsById = {}
-  if (projectIds.length > 0) {
-    const { data: projects, error: pe } = await supabase
-      .from('projects')
-      .select('id, code')
-      .in('id', projectIds)
-    if (pe) console.error('[monitoring] projects error:', pe.message)
-    for (const p of projects ?? []) projectsById[p.id] = p
+  const projectsById   = {}
+  const projectsByCode = {}
+  for (const p of allProjects ?? []) {
+    projectsById[p.id] = p
+    if (p.code) projectsByCode[p.code.toLowerCase().trim()] = p
   }
 
-  // ── 4. fetch ALL surveys for those projects in ONE query ───────────────────
-  //      Only date + created_at — never survey_count / project.survey_count.
-  const surveysById = {}   // { [project_id]: Survey[] }
-  if (projectIds.length > 0) {
+  // 3. Resolve each monitoring row to a project (ID first, then name fallback)
+  const resolvedProjectIds = new Set()
+  const resolvedMap = {}  // monitoringId → project | null
+
+  for (const m of monitorings) {
+    let project = null
+    if (m.project_id != null) project = projectsById[m.project_id] ?? null
+    if (!project && m.project_name) {
+      project = projectsByCode[m.project_name.toLowerCase().trim()] ?? null
+    }
+    resolvedMap[m.id] = project
+    if (project) resolvedProjectIds.add(project.id)
+  }
+
+  // 4. Fetch ALL surveys for resolved projects in one query
+  const surveysById = {}  // { [project_id]: Survey[] }
+  if (resolvedProjectIds.size > 0) {
     const { data: surveys, error: se } = await supabase
       .from('surveys')
       .select('id, project_id, date, created_at')
-      .in('project_id', projectIds)
+      .in('project_id', [...resolvedProjectIds])
     if (se) console.error('[monitoring] surveys error:', se.message)
     for (const s of surveys ?? []) {
       if (!surveysById[s.project_id]) surveysById[s.project_id] = []
@@ -62,44 +81,38 @@ export async function getMonitoringRows() {
     }
   }
 
-  // ── 5. build one output row per monitoring entry ───────────────────────────
+  // 5. Build output rows
   const rows = monitorings.map(monitoring => {
-    const project = monitoring.project_id ? (projectsById[monitoring.project_id] ?? null) : null
-    const surveys = monitoring.project_id ? (surveysById[monitoring.project_id] ?? []) : []
+    const project  = resolvedMap[monitoring.id]
+    const surveys  = project ? (surveysById[project.id] ?? []) : []
 
-    // sort surveys newest-first (prefer .date, fallback .created_at)
-    const sorted = [...surveys].sort(
-      (a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)
-    )
-    const latestSurvey     = sorted[0] ?? null
-    const latestSurveyDate = latestSurvey ? (latestSurvey.date || latestSurvey.created_at) : null
-    const surveyRecordsCount = surveys.length   // count of rows, NEVER project.survey_count
+    // Sort using the shared utility (parseLocalDate inside, no UTC drift)
+    const sorted           = sortSurveysByDateDesc(surveys)
+    const latestDate       = getLatestSurveyDate(surveys)  // Date | null
+    const latestSurveyDate = latestDate?.toISOString() ?? null  // raw string for other consumers
 
-    const nextSurveyDate = latestSurveyDate
-      ? (() => { const d = new Date(latestSurveyDate); d.setDate(d.getDate() + monitoring.frequency_days); return d.toISOString() })()
+    // Debug log for this monitoring entry
+    if (surveys.length > 0) {
+      debugSurveyDates(surveys, `monitoring[${monitoring.id}] ${monitoring.area}`)
+    }
+
+    const surveyRecordsCount = surveys.length
+
+    const nextSurveyDate = latestDate
+      ? (() => {
+          const d = new Date(latestDate.getTime())
+          d.setHours(0, 0, 0, 0)
+          d.setDate(d.getDate() + monitoring.frequency_days)
+          return d.toISOString()
+        })()
       : null
 
-    const daysRemaining = latestSurveyDate
-      ? daysUntil(latestSurveyDate, monitoring.frequency_days)
-      : null
-
+    // daysUntil receives a Date object (already local-normalized)
+    const daysRemaining = daysUntil(latestDate, monitoring.frequency_days)
     const { color: statusColor, label: statusLabel } = statusFromDays(daysRemaining)
 
-    // ── debug logs ───────────────────────────────────────────────────────────
-    console.log('[monitoring]', monitoring)
-    console.log('[monitoring] project', project)
-    console.log('[monitoring] surveys', surveys)
-    console.log('[monitoring] computed', {
-      latestSurveyDate,
-      surveyRecordsCount,
-      nextSurveyDate,
-      daysRemaining,
-      statusColor,
-      statusLabel,
-    })
-
     return {
-      // official shape
+      // canonical shape
       monitoringId:        monitoring.id,
       area:                monitoring.area,
       projectCode:         project?.code ?? monitoring.project_name ?? '—',
@@ -111,27 +124,28 @@ export async function getMonitoringRows() {
       daysRemaining,
       statusColor,
       statusLabel,
-      // aliases consumed by MonitoringPage table cells
-      id:            monitoring.id,
-      project:       project?.code ?? monitoring.project_name ?? '—',
-      surveys:       surveyRecordsCount,
-      surveyCount:   surveyRecordsCount,
-      lastSurvey:    latestSurveyDate ? new Date(latestSurveyDate).toLocaleDateString('pt-BR') : '—',
-      daysUntilNext: daysRemaining,
-      // raw fields needed by MonitoringEditPage
-      project_id:    monitoring.project_id,
+      // aliases consumed by MonitoringPage / MonitoringEditPage
+      id:             monitoring.id,
+      project:        project?.code ?? monitoring.project_name ?? '—',
+      surveys:        surveyRecordsCount,
+      surveyCount:    surveyRecordsCount,
+      lastSurvey:     latestDate ? formatDateBR(latestDate) : '—',
+      daysUntilNext:  daysRemaining,
+      project_id:     monitoring.project_id ?? project?.id ?? null,
       frequency_days: monitoring.frequency_days,
     }
   })
 
+  // Summary debug table
   console.table(rows.map(r => ({
-    área:                r.area,
-    projeto:             r.projectCode,
-    'Nº Levantamentos':  r.surveyRecordsCount,
-    'Último':            r.lastSurvey,
-    'Próximo':           r.nextSurveyDate ? new Date(r.nextSurveyDate).toLocaleDateString('pt-BR') : '—',
-    'Dias Restantes':    r.daysRemaining ?? '—',
-    status:              r.statusColor,
+    id:               r.monitoringId,
+    project_id:       r.project_id,
+    projeto:          r.projectCode,
+    surveys_found:    r.surveyRecordsCount,
+    latestSurveyDate: r.latestSurveyDate ? r.latestSurveyDate.slice(0, 10) : '—',
+    lastSurvey_fmt:   r.lastSurvey,
+    daysRemaining:    r.daysRemaining ?? '—',
+    status:           r.statusColor,
   })))
 
   return rows

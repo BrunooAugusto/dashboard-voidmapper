@@ -4,7 +4,7 @@ import {
   FilePlus2,
   Activity,
   Newspaper,
-  HelpCircle,
+  ShieldCheck,
   Settings,
   X,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import NavItem from './NavItem'
 import Avatar from './Avatar'
 import AGALogo from './AGALogo'
 import { useLanguage } from '../contexts/LanguageContext'
+import { usePermissions } from '../hooks/usePermissions'
 
 const MAIN_MENU = [
   { id: 'dashboard',    labelKey: 'nav.dashboard',  icon: LayoutGrid },
@@ -23,7 +24,7 @@ const MAIN_MENU = [
 ]
 
 const BOTTOM_MENU = [
-  { id: 'support',  labelKey: 'nav.support',  icon: HelpCircle },
+  { id: 'admin',    labelKey: 'nav.admin',    icon: ShieldCheck, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings },
 ]
 
@@ -37,6 +38,8 @@ const DEFAULT_USER = {
 
 export default function Sidebar({ activeId = 'dashboard', onNavigate, user = DEFAULT_USER, isOpen = false, onClose }) {
   const { t } = useLanguage()
+  const { isAdminPage } = usePermissions(user)
+  const visibleBottomMenu = BOTTOM_MENU.filter(item => !item.adminOnly || isAdminPage)
 
   return (
     <aside
@@ -115,7 +118,7 @@ export default function Sidebar({ activeId = 'dashboard', onNavigate, user = DEF
 
       {/* Bottom navigation — always pinned */}
       <nav className="px-6 pb-8 pt-4 shrink-0 flex flex-col gap-2">
-        {BOTTOM_MENU.map((item) => (
+        {visibleBottomMenu.map((item) => (
           <NavItem
             key={item.id}
             icon={item.icon}

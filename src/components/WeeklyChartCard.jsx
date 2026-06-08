@@ -9,9 +9,9 @@ import { useLanguage } from '../contexts/LanguageContext'
 const PERIODS = ['weekly', 'monthly', 'annual']
 
 // Zero-filled fallbacks so chart never receives undefined
-const EMPTY_WEEKLY  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(l => ({ label: l, surveys: 0, approved: 0, deformations: 0, rehabilitating: 0, errors: 0 }))
-const EMPTY_MONTHLY = ['Sem 1','Sem 2','Sem 3','Sem 4'].map(l => ({ label: l, surveys: 0, approved: 0, deformations: 0, rehabilitating: 0, errors: 0 }))
-const EMPTY_ANNUAL  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map(l => ({ label: l, surveys: 0, approved: 0, deformations: 0, rehabilitating: 0, errors: 0 }))
+const EMPTY_WEEKLY  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(l => ({ label: l, metragem: 0 }))
+const EMPTY_MONTHLY = ['Sem 1','Sem 2','Sem 3','Sem 4'].map(l => ({ label: l, metragem: 0 }))
+const EMPTY_ANNUAL  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map(l => ({ label: l, metragem: 0 }))
 
 function emptyFallback(period) {
   if (period === 'monthly') return EMPTY_MONTHLY
@@ -47,7 +47,7 @@ export default function WeeklyChartCard() {
   )
 
   const activeData = chartData ?? emptyFallback(period)
-  const isEmpty    = !loading && !error && activeData.every(d => d.surveys === 0)
+  const isEmpty    = !loading && !error && activeData.every(d => (d.metragem ?? 0) === 0)
 
   return (
     <Card className="h-[320px] 3xl:h-[360px] 4xl:h-[400px] 5xl:h-[440px]">

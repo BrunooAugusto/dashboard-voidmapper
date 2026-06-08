@@ -4,16 +4,10 @@ import {
   AlertTriangle, FileBarChart, Loader2,
 } from 'lucide-react'
 import AGALogo from './AGALogo'
+import SurveyAreaChart from './WeeklyBarChart'
 import { getWeeklyReportFull, generateReport } from '../services/reportService'
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
-
-function getMonday(d) {
-  const date = new Date(d)
-  const day  = date.getDay()
-  date.setDate(date.getDate() - day + (day === 0 ? -6 : 1))
-  return date
-}
 
 function fmtDate(d) {
   return d instanceof Date && !isNaN(d) ? d.toLocaleDateString('pt-BR') : '—'
@@ -32,15 +26,9 @@ function getPeriodDates(mode, customStart, customEnd) {
       const start = new Date(); start.setDate(now.getDate() - 6); start.setHours(0, 0, 0, 0)
       return { start, end: new Date() }
     }
-    case 'thisWeek': {
-      const start = getMonday(new Date()); start.setHours(0, 0, 0, 0)
+    case 'thisMonth': {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
       return { start, end: new Date() }
-    }
-    case 'lastWeek': {
-      const thisMonday = getMonday(new Date())
-      const end   = new Date(thisMonday); end.setDate(end.getDate() - 1); end.setHours(23, 59, 59, 999)
-      const start = new Date(thisMonday); start.setDate(start.getDate() - 7); start.setHours(0, 0, 0, 0)
-      return { start, end }
     }
     case 'custom':
       return {
@@ -63,32 +51,51 @@ function transformMonRow(r) {
   }
 }
 
-function buildInsights(surveyCount, metrics, overdueRows, monitorRows) {
+function fmtMeters(v) {
+  if (!v || v <= 0) return '0'
+  return Math.round(v).toLocaleString('pt-BR')
+}
+
+function getChartTitle(mode) {
+  if (mode === 'last7')     return 'Metragem Levantada — Últimos 7 Dias'
+  if (mode === 'thisMonth') return 'Metragem Levantada — Este Mês'
+  return 'Metragem Levantada — Período Personalizado'
+}
+
+function buildInsights(surveyCount, metrics, overdueRows, monitorRows, metragemMetrics) {
   const insights = []
-  const deforms  = metrics.deformations   ?? 0
-  const rehab    = metrics.rehabilitating ?? 0
-  const errors   = metrics.errors         ?? 0
-  const soon     = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext > 0 && r.daysUntilNext <= 3)
-  const overdue  = overdueRows
+  const deforms = metrics.deformations   ?? 0
+  const rehab   = metrics.rehabilitating ?? 0
+  const errors  = metrics.errors         ?? 0
+  const soon    = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext > 0 && r.daysUntilNext <= 3)
+  const total   = metragemMetrics?.total ?? 0
 
-  insights.push(surveyCount > 0
-    ? `${surveyCount} novo${surveyCount !== 1 ? 's' : ''} levantamento${surveyCount !== 1 ? 's' : ''} cadastrado${surveyCount !== 1 ? 's' : ''} no período.`
-    : 'Nenhum levantamento cadastrado no período selecionado.')
+  // Combined executive summary
+  if (surveyCount > 0 || total > 0) {
+    let summary = `No período selecionado foram registrados ${surveyCount} levantamento${surveyCount !== 1 ? 's' : ''}`
+    if (total > 0) summary += `, totalizando ${fmtMeters(total)} metros`
+    summary += '.'
+    if (deforms > 0) summary += ` Foram identificadas ${deforms} deformação${deforms !== 1 ? 'ões' : ''} no período.`
+    insights.push(summary)
+  } else {
+    insights.push('Nenhum levantamento registrado no período selecionado.')
+  }
 
-  insights.push(deforms > 0
-    ? `${deforms} projeto${deforms !== 1 ? 's' : ''} com deformação ativa — requer atenção imediata.`
-    : 'Nenhum projeto com deformação detectado no período.')
+  if (deforms > 0)
+    insights.push(`${deforms} projeto${deforms !== 1 ? 's' : ''} com deformação registrada no período — requer atenção imediata.`)
 
-  insights.push(overdue.length > 0
-    ? `${overdue.length} monitoramento${overdue.length !== 1 ? 's' : ''} com prazo vencido sem levantamento realizado.`
+  if (rehab > 0)
+    insights.push(`${rehab} projeto${rehab !== 1 ? 's' : ''} com reabilitação ativa no período.`)
+
+  if (errors > 0)
+    insights.push(`${errors} projeto${errors !== 1 ? 's' : ''} com erro${errors !== 1 ? 's' : ''} de levantamento no período.`)
+
+  insights.push(overdueRows.length > 0
+    ? `${overdueRows.length} monitoramento${overdueRows.length !== 1 ? 's' : ''} com prazo vencido sem levantamento realizado.`
     : 'Todos os monitoramentos estão dentro do prazo estabelecido.')
 
   if (soon.length > 0)
     insights.push(`${soon.length} monitoramento${soon.length !== 1 ? 's' : ''} vence${soon.length !== 1 ? 'm' : ''} nos próximos 3 dias.`)
-  if (rehab > 0)
-    insights.push(`${rehab} projeto${rehab !== 1 ? 's' : ''} em processo ativo de reabilitação.`)
-  if (errors > 0)
-    insights.push(`${errors} projeto${errors !== 1 ? 's' : ''} com erro${errors !== 1 ? 's' : ''} de levantamento registrado${errors !== 1 ? 's' : ''}.`)
 
   return insights
 }
@@ -175,6 +182,45 @@ function EmptyNote({ message }) {
   return <p className="text-sm text-[#BBBBBB] italic py-1">{message}</p>
 }
 
+function WeeklyMetragemRow({ week, startDate, endDate, metragem, surveyCount }) {
+  const fmtD = d => d instanceof Date && !isNaN(d)
+    ? d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    : '—'
+  const hasData = metragem > 0 || surveyCount > 0
+  return (
+    <div
+      className="grid items-center gap-6 px-5 py-4 border-b border-[#F0F0F0] last:border-0 bg-white"
+      style={{ gridTemplateColumns: '52px 1px 1fr auto auto' }}
+    >
+      {/* Week number */}
+      <div>
+        <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#BBBBBB] block leading-none mb-1">Semana</span>
+        <span className="text-[1.6rem] font-black text-[#111111] tabular-nums leading-none">{week}</span>
+      </div>
+
+      {/* Divider */}
+      <div className="h-10 w-px bg-[#EBEBEB]" />
+
+      {/* Date range */}
+      <span className="text-sm text-[#666666] font-medium">
+        {fmtD(startDate)} a {fmtD(endDate)}
+      </span>
+
+      {/* Survey count */}
+      <span className="text-[11px] text-[#AAAAAA] font-medium tabular-nums whitespace-nowrap">
+        {surveyCount} levant.
+      </span>
+
+      {/* Metragem — orange accent */}
+      <div className="text-right min-w-[90px]">
+        <span className={`text-xl font-black tabular-nums ${hasData && metragem > 0 ? 'text-[#F97316]' : 'text-[#CCCCCC]'}`}>
+          {metragem > 0 ? `${Math.round(metragem).toLocaleString('pt-BR')} m` : '— m'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function PeriodTab({ label, active, onClick }) {
   return (
     <button
@@ -208,10 +254,9 @@ export default function WeeklyReportPage({ onBack, user }) {
   const [reportData,   setReportData]   = useState(null)
 
   const PERIOD_TABS = [
-    { key: 'last7',    label: 'Últimos 7 dias' },
-    { key: 'thisWeek', label: 'Esta semana' },
-    { key: 'lastWeek', label: 'Semana passada' },
-    { key: 'custom',   label: 'Personalizado' },
+    { key: 'last7',     label: 'Últimos 7 dias' },
+    { key: 'thisMonth', label: 'Este mês' },
+    { key: 'custom',    label: 'Personalizado' },
   ]
 
   // ── Derived data ─────────────────────────────────────────────────────────────
@@ -221,15 +266,18 @@ export default function WeeklyReportPage({ onBack, user }) {
   const deformProjects = reportData?.deformationProjects ?? []
   const errorProjects  = reportData?.errorProjects       ?? []
   const metrics        = reportData?.metrics             ?? { totalProjects: 0, deformations: 0, rehabilitating: 0, errors: 0 }
+  const metragemMetrics  = reportData?.metragemMetrics   ?? { total: 0, avg: 0, max: 0 }
+  const chartData        = reportData?.chartData         ?? []
+  const weeklyBreakdown  = reportData?.weeklyBreakdown   ?? []
   const monitorRows    = (reportData?.monitoring ?? []).map(transformMonRow)
 
   const overdueRows = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext <= 0)
   const warnRows    = monitorRows.filter(r => r.daysUntilNext != null && r.daysUntilNext > 0 && r.daysUntilNext <= 3)
 
   const insights = useMemo(
-    () => buildInsights(surveyRows.length, metrics, overdueRows, monitorRows),
+    () => buildInsights(surveyRows.length, metrics, overdueRows, monitorRows, metragemMetrics),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [surveyRows.length, metrics.deformations, metrics.rehabilitating, metrics.errors, overdueRows.length, monitorRows.length],
+    [surveyRows.length, metrics.deformations, metrics.rehabilitating, metrics.errors, overdueRows.length, monitorRows.length, metragemMetrics.total],
   )
 
   // ── Actions ───────────────────────────────────────────────────────────────────
@@ -495,9 +543,42 @@ export default function WeeklyReportPage({ onBack, user }) {
               </div>
             </section>
 
-            {/* 02. NOVOS LEVANTAMENTOS ────────────────────────────────────── */}
+            {/* 02. METRAGEM POR SEMANA NO PERÍODO ─────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={2} title="Novos Levantamentos" count={surveyRows.length || undefined} />
+              <SectionHead num={2} title="Metragem por Semana no Período" />
+
+              {/* Weekly breakdown rows */}
+              {weeklyBreakdown.length === 0 || weeklyBreakdown.every(w => w.surveyCount === 0 && w.metragem === 0) ? (
+                <EmptyNote message="Nenhuma metragem registrada no período selecionado." />
+              ) : (
+                <div className="border border-[#E4E4E4] overflow-hidden mb-10">
+                  {weeklyBreakdown.map((w, i) => (
+                    <WeeklyMetragemRow key={i} {...w} />
+                  ))}
+                </div>
+              )}
+
+              {/* Chart below — evolution view */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#AAAAAA] mb-5">
+                  {getChartTitle(mode)}
+                </p>
+                {chartData.some(d => (d.metragem ?? 0) > 0) ? (
+                  <div
+                    className="w-full pointer-events-none"
+                    style={{ position: 'relative', height: '260px', backgroundColor: '#ffffff' }}
+                  >
+                    <SurveyAreaChart data={chartData} />
+                  </div>
+                ) : (
+                  <EmptyNote message="Nenhuma metragem registrada no período selecionado." />
+                )}
+              </div>
+            </section>
+
+            {/* 03. NOVOS LEVANTAMENTOS ────────────────────────────────────── */}
+            <section className="report-section">
+              <SectionHead num={3} title="Novos Levantamentos" count={surveyRows.length || undefined} />
 
               {surveyRows.length === 0 ? (
                 <EmptyNote message="Nenhum levantamento cadastrado no período selecionado." />
@@ -529,9 +610,9 @@ export default function WeeklyReportPage({ onBack, user }) {
               )}
             </section>
 
-            {/* 03. PROJETOS COM DEFORMAÇÃO ────────────────────────────────── */}
+            {/* 04. PROJETOS COM DEFORMAÇÃO ────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={3} title="Projetos com Deformação" count={deformProjects.length || undefined} />
+              <SectionHead num={4} title="Projetos com Deformação" count={deformProjects.length || undefined} />
 
               {deformProjects.length === 0 ? (
                 <EmptyNote message="Nenhum projeto com deformação ativa no período." />
@@ -544,9 +625,9 @@ export default function WeeklyReportPage({ onBack, user }) {
               )}
             </section>
 
-            {/* 04. PROJETOS COM ERRO ──────────────────────────────────────── */}
+            {/* 05. PROJETOS COM ERRO ──────────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={4} title="Projetos com Erro" count={errorProjects.length || undefined} />
+              <SectionHead num={5} title="Projetos com Erro" count={errorProjects.length || undefined} />
 
               {errorProjects.length === 0 ? (
                 <EmptyNote message="Nenhum projeto com erro de levantamento no período." />
@@ -559,9 +640,9 @@ export default function WeeklyReportPage({ onBack, user }) {
               )}
             </section>
 
-            {/* 05. REABILITAÇÃO ───────────────────────────────────────────── */}
+            {/* 06. REABILITAÇÃO ───────────────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={5} title="Projetos em Reabilitação" count={rehabRows.length || undefined} />
+              <SectionHead num={6} title="Projetos em Reabilitação" count={rehabRows.length || undefined} />
 
               {rehabRows.length === 0 ? (
                 <EmptyNote message="Nenhum projeto em reabilitação no momento." />
@@ -589,10 +670,10 @@ export default function WeeklyReportPage({ onBack, user }) {
               )}
             </section>
 
-            {/* 06. ALERTAS DE MONITORAMENTO ───────────────────────────────── */}
+            {/* 07. ALERTAS DE MONITORAMENTO ───────────────────────────────── */}
             <section className="report-section">
               <SectionHead
-                num={6}
+                num={7}
                 title="Alertas de Monitoramento"
                 count={(overdueRows.length + warnRows.length) || undefined}
               />
@@ -671,9 +752,9 @@ export default function WeeklyReportPage({ onBack, user }) {
               )}
             </section>
 
-            {/* 07. OBSERVAÇÕES ────────────────────────────────────────────── */}
+            {/* 08. OBSERVAÇÕES ────────────────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={7} title="Observações" />
+              <SectionHead num={8} title="Observações" />
               <div className="relative">
                 <textarea
                   value={observations}
@@ -691,9 +772,9 @@ export default function WeeklyReportPage({ onBack, user }) {
               </div>
             </section>
 
-            {/* 08. CONCLUSÃO ──────────────────────────────────────────────── */}
+            {/* 09. CONCLUSÃO ──────────────────────────────────────────────── */}
             <section className="report-section">
-              <SectionHead num={8} title="Conclusão" />
+              <SectionHead num={9} title="Conclusão" />
               <textarea
                 value={conclusion}
                 onChange={e => setConclusion(e.target.value)}
