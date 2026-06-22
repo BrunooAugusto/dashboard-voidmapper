@@ -23,7 +23,7 @@ function catmullRom(pts, tension = 0.4) {
 }
 
 function niceMax(v) {
-  if (v <= 0) return 500
+  if (v <= 0) return 10
   const mag = Math.pow(10, Math.floor(Math.log10(v)))
   const normalized = v / mag
   for (const n of [1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
@@ -44,8 +44,9 @@ function TipRow({ dot, label, value }) {
   )
 }
 
-export default function SurveyAreaChart({ data }) {
+export default function SurveyAreaChart({ data, metric = 'metragem' }) {
   const { t } = useLanguage()
+  const getValue = (d) => metric === 'levantamentos' ? (d.count ?? 0) : (d.metragem ?? 0)
   const gradId  = useId()
   const clipId  = useId()
   const containerRef = useRef(null)
@@ -70,7 +71,7 @@ export default function SurveyAreaChart({ data }) {
   const chartH = dims.height - PAD.top  - PAD.bottom
   const bottomY = PAD.top + chartH
 
-  const max = useMemo(() => niceMax(Math.max(...data.map((d) => d.metragem ?? 0), 0)), [data])
+  const max = useMemo(() => niceMax(Math.max(...data.map(d => getValue(d)), 0)), [data, metric]) // eslint-disable-line react-hooks/exhaustive-deps
   const ticks = useMemo(() => {
     const step = max / 4
     return [0, step, step * 2, step * 3, max]
@@ -80,9 +81,9 @@ export default function SurveyAreaChart({ data }) {
     () =>
       data.map((d, i) => ({
         x: PAD.left + X_INNER + (data.length <= 1 ? (chartW - 2 * X_INNER) / 2 : (i / (data.length - 1)) * (chartW - 2 * X_INNER)),
-        y: PAD.top  + (max > 0 ? (1 - (d.metragem ?? 0) / max) * chartH : chartH),
+        y: PAD.top  + (max > 0 ? (1 - getValue(d) / max) * chartH : chartH),
       })),
-    [data, chartW, chartH, max],
+    [data, chartW, chartH, max, metric], // eslint-disable-line react-hooks/exhaustive-deps
   )
 
   const linePath = catmullRom(pts)
@@ -235,7 +236,11 @@ export default function SurveyAreaChart({ data }) {
           >
             <p className="text-xs font-semibold text-ink-900 mb-2">{item.label}</p>
             <div className="flex flex-col gap-1.5">
-              <TipRow dot="bg-brand-500" label={t('chart.tooltip.metragem')} value={`${Math.round(item.metragem ?? 0)} m`} />
+              <TipRow
+                dot="bg-brand-500"
+                label={metric === 'levantamentos' ? t('chart.tooltip.levantamentos') : t('chart.tooltip.metragem')}
+                value={metric === 'levantamentos' ? String(Math.round(getValue(item))) : `${Math.round(getValue(item))} m`}
+              />
             </div>
           </div>
         )

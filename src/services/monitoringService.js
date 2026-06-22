@@ -68,17 +68,33 @@ export async function getMonitoringRows() {
   }
 
   // 4. Fetch ALL surveys for resolved projects in one query
-  const surveysById = {}  // { [project_id]: Survey[] }
+  const surveysById = {}  // { [project_id]: Survey[] } — levantamentos only
   if (resolvedProjectIds.size > 0) {
-    const { data: surveys, error: se } = await supabase
+    let { data: surveys, error: se } = await supabase
       .from('surveys')
-      .select('id, project_id, date, created_at')
+      .select('id, project_id, date, created_at, file_type')
       .in('project_id', [...resolvedProjectIds])
+    if (se?.code === '42703') {
+      // file_type column not yet migrated — fall back without it
+      ;({ data: surveys, error: se } = await supabase
+        .from('surveys')
+        .select('id, project_id, date, created_at')
+        .in('project_id', [...resolvedProjectIds]))
+    }
     if (se) console.error('[monitoring] surveys error:', se.message)
-    for (const s of surveys ?? []) {
+
+    const all      = surveys ?? []
+    const ltcCount = all.filter(s => s.file_type === 'ltc').length
+    const stcCount = all.filter(s => s.file_type === 'stc').length
+    let levCount   = 0
+    // Monitoring "last survey" / count must ignore LTC/STC — only real levantamentos
+    for (const s of all) {
+      if (s.file_type && s.file_type !== 'levantamento') continue
+      levCount++
       if (!surveysById[s.project_id]) surveysById[s.project_id] = []
       surveysById[s.project_id].push(s)
     }
+    console.log(`[monitoring] surveys total: ${all.length} | ltc: ${ltcCount} | stc: ${stcCount} | levantamentos usados: ${levCount}`)
   }
 
   // 5. Build output rows

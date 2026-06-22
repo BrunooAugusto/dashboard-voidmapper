@@ -58,6 +58,10 @@ export const ACTION_LABELS = {
   edit_monitoring:   'Editou monitoramento',
   delete_monitoring: 'Excluiu monitoramento',
   generate_report:   'Gerou relatorio',
+  add_ltc:           'Adicionou arquivo LTC',
+  add_stc:           'Adicionou arquivo STC',
+  remove_ltc:        'Removeu arquivo LTC',
+  remove_stc:        'Removeu arquivo STC',
 }
 
 export const ENTITY_LABELS = {

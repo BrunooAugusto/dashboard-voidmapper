@@ -89,22 +89,30 @@ export default function MonitoringEditPage({ row, onBack }) {
   useEffect(() => {
     if (!form.projectId) { setLiveData({ latestSurveyDate: null, surveyCount: 0 }); return }
     const pid = parseInt(form.projectId, 10)
-    supabase
-      .from('surveys')
-      .select('id, date, created_at')
-      .eq('project_id', pid)
-      .then(({ data }) => {
-        const list = data ?? []
-        const sorted = [...list].sort(
-          (a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)
-        )
-        const latest = sorted[0]
-        setLiveData({
-          latestSurveyDate: latest ? (latest.date || latest.created_at) : null,
-          surveyCount: list.length,
-        })
+    ;(async () => {
+      let { data, error } = await supabase
+        .from('surveys')
+        .select('id, date, created_at, file_type')
+        .eq('project_id', pid)
+      if (error?.code === '42703') {
+        // file_type column not yet migrated — fall back without it
+        ;({ data, error } = await supabase
+          .from('surveys')
+          .select('id, date, created_at')
+          .eq('project_id', pid))
+      }
+      if (error) throw error
+      // Only real levantamentos count — LTC/STC are excluded
+      const list = (data ?? []).filter(s => !s.file_type || s.file_type === 'levantamento')
+      const sorted = [...list].sort(
+        (a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)
+      )
+      const latest = sorted[0]
+      setLiveData({
+        latestSurveyDate: latest ? (latest.date || latest.created_at) : null,
+        surveyCount: list.length,
       })
-      .catch(console.error)
+    })().catch(console.error)
   }, [form.projectId])
 
   function handleProjectSelect(e) {

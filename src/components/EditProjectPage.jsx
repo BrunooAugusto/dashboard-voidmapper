@@ -12,11 +12,8 @@ import { useLanguage } from '../contexts/LanguageContext'
 
 function parseDateToInput(str) {
   if (!str || str === '—') return ''
-  // ISO datetime "2024-01-15T00:00:00.000Z" → take only the date part
   if (str.includes('T')) return str.split('T')[0]
-  // Already "YYYY-MM-DD"
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str
-  // pt-BR "DD/MM/YYYY"
   const parts = str.split('/')
   if (parts.length !== 3) return ''
   const [d, m, y] = parts
@@ -47,13 +44,11 @@ function buildInitialImages(project) {
     .filter(img => img.src)
 }
 
-
 export default function EditProjectPage({ project, onBack }) {
   const { t } = useLanguage()
   const [form, setForm] = useState(() => buildInitialForm(project))
   const [images, setImages] = useState(() => buildInitialImages(project))
   const initialImages = useRef(buildInitialImages(project)).current
-  const [registerSurvey, setRegisterSurvey] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -78,15 +73,15 @@ export default function EditProjectPage({ project, onBack }) {
         projectUrl:           form.projectLink || null,
         level:                form.level       ? parseInt(form.level, 10) : null,
         rehabilitationStatus: form.rehabilitationStatus || null,
-      }, { registerSurvey })
+      })
 
-      // Delete images that were removed from the manager
+      // Delete removed images
       const removed = initialImages.filter(init => !images.find(img => img.id === init.id))
       for (const img of removed) {
         await deleteProjectImage(project.id, img.id)
       }
 
-      // Upload new images (identified by presence of .file — blob from local picker)
+      // Upload new images
       const newFiles = images.filter(img => img.file)
       for (const img of newFiles) {
         await uploadProjectImage(project.id, img.file)
@@ -186,7 +181,6 @@ export default function EditProjectPage({ project, onBack }) {
                     setForm(prev => {
                       const hadWarning = prev.statuses.includes('warning')
                       const hasWarning = v.includes('warning')
-                      // If warning was just removed, clear rehab status
                       const rehabilitationStatus = !hasWarning && hadWarning ? '' : prev.rehabilitationStatus
                       return { ...prev, statuses: v, rehabilitationStatus }
                     })
@@ -194,10 +188,9 @@ export default function EditProjectPage({ project, onBack }) {
                 />
               </FormField>
 
-              {/* Rehabilitation status — always visible */}
+              {/* Rehabilitation status */}
               <FormField label="Status da Reabilitação">
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Em Reabilitação — yellow/warning */}
                   {(() => {
                     const active = form.rehabilitationStatus === 'in_progress'
                     return (
@@ -205,7 +198,6 @@ export default function EditProjectPage({ project, onBack }) {
                         type="button"
                         onClick={() => setForm(prev => {
                           if (active) {
-                            // deselect: remove warning from statuses, clear rehab
                             return {
                               ...prev,
                               statuses: prev.statuses.filter(s => s !== 'warning'),
@@ -231,7 +223,6 @@ export default function EditProjectPage({ project, onBack }) {
                     )
                   })()}
 
-                  {/* Reabilitado — indigo/purple */}
                   {(() => {
                     const active = form.rehabilitationStatus === 'rehabilitated'
                     return (
@@ -239,12 +230,10 @@ export default function EditProjectPage({ project, onBack }) {
                         type="button"
                         onClick={() => setForm(prev => {
                           if (active) {
-                            // deselect: clear rehab status
                             return { ...prev, rehabilitationStatus: '' }
                           }
                           return {
                             ...prev,
-                            // remove 'warning' since this project is done rehabilitating
                             statuses: prev.statuses.filter(s => s !== 'warning'),
                             rehabilitationStatus: 'rehabilitated',
                           }
@@ -261,36 +250,6 @@ export default function EditProjectPage({ project, onBack }) {
                       </button>
                     )
                   })()}
-                </div>
-              </FormField>
-
-              {/* Register as new survey toggle */}
-              <FormField label="Registrar como novo levantamento?">
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setRegisterSurvey(false)}
-                    className={cn(
-                      'h-[52px] flex items-center justify-center gap-2 px-4 rounded-[10px] border text-sm font-medium transition-colors',
-                      !registerSurvey
-                        ? 'bg-surface border-brand-300 text-ink-900 ring-1 ring-brand-300'
-                        : 'bg-input-bg border-border-soft text-ink-400 hover:bg-page',
-                    )}
-                  >
-                    Não
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRegisterSurvey(true)}
-                    className={cn(
-                      'h-[52px] flex items-center justify-center gap-2 px-4 rounded-[10px] border text-sm font-medium transition-colors',
-                      registerSurvey
-                        ? 'bg-surface border-brand-300 text-ink-900 ring-1 ring-brand-300'
-                        : 'bg-input-bg border-border-soft text-ink-400 hover:bg-page',
-                    )}
-                  >
-                    Sim
-                  </button>
                 </div>
               </FormField>
 
@@ -335,8 +294,8 @@ export default function EditProjectPage({ project, onBack }) {
               </div>
             </div>
 
-            {/* Right column: project images */}
-            <div className="flex flex-col gap-5">
+            {/* Right column: images */}
+            <div className="flex flex-col gap-6">
               <ImageManager images={images} onChange={setImages} />
             </div>
 

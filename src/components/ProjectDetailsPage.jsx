@@ -1,5 +1,5 @@
-﻿import { useState, useEffect } from 'react'
-import { ArrowLeft, Pencil, Trash2, FileText, Image, Clock } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ArrowLeft, Pencil, Trash2, FileText, Image, Clock, Plus } from 'lucide-react'
 import Card from './Card'
 import MetaCard from './MetaCard'
 import StatusBadge from './StatusBadge'
@@ -9,9 +9,9 @@ import { cn } from '../lib/cn'
 import { getProjectById, getProjectSurveys, deleteProjectCascade } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 import { getProjectAuditLogs, ACTION_LABELS } from '../services/auditService'
-import { formatSurveyDate } from '../lib/surveyDates.js'
+import { formatSurveyDate, sortSurveysByDateDesc } from '../lib/surveyDates.js'
 
-export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete }) {
+export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, onNewSurvey }) {
   const { t } = useLanguage()
   const [detail, setDetail]       = useState(null)
   const [loading, setLoading]     = useState(true)
@@ -122,6 +122,14 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete }
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
+                onClick={() => onNewSurvey?.(d)}
+                className="h-8 px-3 flex items-center gap-1.5 rounded-full border border-brand-500 text-brand-500 text-xs font-semibold hover:bg-brand-500/10 transition-colors"
+              >
+                <Plus className="w-3 h-3" strokeWidth={2} />
+                {t('detail.newSurvey')}
+              </button>
+              <button
+                type="button"
                 onClick={() => onEdit?.(d)}
                 className="h-8 px-3 flex items-center gap-1.5 rounded-full bg-brand-500 text-white text-xs font-semibold hover:bg-brand-600 transition-colors"
               >
@@ -167,7 +175,7 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete }
                 </div>
               )}
 
-              {/* Action buttons — always side by side */}
+              {/* Action buttons */}
               <div className="grid grid-cols-2 gap-2">
                 {projectUrl ? (
                   <button
@@ -190,34 +198,43 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete }
                 </button>
               </div>
 
-              {/* Survey history — compact with scroll cap */}
-              {surveys.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
-                    <span className="text-xs font-semibold text-ink-700">Histórico de Levantamentos</span>
-                    <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">
-                      {surveys.length}
-                    </span>
-                  </div>
-                  <div className="flex flex-col divide-y divide-border-soft rounded-lg border border-border-soft overflow-hidden max-h-[220px] overflow-y-auto">
-                    {surveys.map((s, i) => (
-                      <div key={s.id ?? i} className="flex items-center gap-3 px-3 py-2 bg-page text-xs">
-                        <span className="font-mono text-ink-400 shrink-0 w-5 text-right">{i + 1}</span>
-                        <span className="font-medium text-ink-700 truncate flex-1" title={s.file}>
-                          {s.file || '—'}
+              {/* Survey history — apenas levantamentos reais (LTC/STC não aparecem aqui) */}
+              {(() => {
+                const levSurveys = sortSurveysByDateDesc(
+                  surveys.filter(s => !s.file_type || s.file_type === 'levantamento')
+                )
+                return (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
+                      <span className="text-xs font-semibold text-ink-700">Histórico de Levantamentos</span>
+                      {levSurveys.length > 0 && (
+                        <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">
+                          {levSurveys.length}
                         </span>
-                        <span className="text-ink-400 shrink-0">
-                          {formatSurveyDate(s.date || s.createdAt)}
-                        </span>
-                        {s.metering && (
-                          <span className="text-ink-400 shrink-0">{s.metering} m</span>
-                        )}
+                      )}
+                    </div>
+                    {levSurveys.length > 0 && (
+                      <div className="flex flex-col divide-y divide-border-soft rounded-lg border border-border-soft overflow-hidden max-h-[260px] overflow-y-auto">
+                        {levSurveys.map((s, i) => (
+                          <div key={s.id ?? i} className="flex items-center gap-2 px-3 py-2 text-xs bg-page">
+                            <span className="font-mono text-ink-400 shrink-0 w-5 text-right">{i + 1}</span>
+                            <span className="font-medium truncate flex-1 text-ink-700" title={s.file}>
+                              {s.file || '—'}
+                            </span>
+                            <span className="text-ink-400 shrink-0">
+                              {formatSurveyDate(s.date || s.createdAt)}
+                            </span>
+                            {s.metering && (
+                              <span className="text-ink-400 shrink-0">{s.metering} m</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
             </div>
 

@@ -1,6 +1,7 @@
 ﻿import { supabase } from '../lib/supabase.js'
 import { logAction } from './auditService.js'
 import { getLatestSurveyDate, sortSurveysByDateDesc, formatDateBR, debugSurveyDates } from '../lib/surveyDates.js'
+import { deleteAllProjectFiles } from './projectFilesService.js'
 
 function toLocaleDatePT(iso) {
   if (!iso) return '—'
@@ -13,11 +14,30 @@ function nullableFloat(v) {
   return isNaN(n) ? null : n
 }
 
+// Auto-classifica pelo nome do arquivo — única fonte de verdade para LEVANTAMENTO/LTC/STC.
+// Regra: nome contém "ltc" → LTC; contém "stc" → STC; senão → LEVANTAMENTO.
+function classifyFileType(name) {
+  const f = String(name ?? '').toLowerCase()
+  if (f.includes('ltc')) return 'ltc'
+  if (f.includes('stc')) return 'stc'
+  return 'levantamento'
+}
+
 function transform(p) {
+  // When surveys are embedded (getProjects), recompute the levantamento-only
+  // count dynamically instead of trusting the denormalized survey_count column,
+  // which may be stale for projects with LTC/STC entries from before classification.
+  const rawSurveys = Array.isArray(p.surveys) ? p.surveys : null
+  const surveyCount = rawSurveys
+    ? rawSurveys
+        .filter(s => !s.file_type || s.file_type === 'levantamento')
+        .reduce((sum, s) => sum + Math.max(parseInt(s.count, 10) || 1, 1), 0)
+    : (p.survey_count ?? 0)
   return {
     ...p,
-    surveys:              p.survey_count  ?? 0,
-    surveyCount:          p.survey_count  ?? 0,
+    surveys:              surveyCount,
+    surveyCount:          surveyCount,
+    rawDate:              p.date ?? p.created_at ?? null,
     date:                 toLocaleDatePT(p.date),
     metragem:             p.project_length != null ? String(p.project_length) : null,
     projectLength:        p.project_length ?? null,
@@ -34,31 +54,58 @@ function transform(p) {
 }
 
 export async function getProjects(search = '') {
-  let query = supabase
-    .from('projects')
-    .select('*, project_images(id, url, sort_order, is_main)')
-    .order('created_at', { ascending: false })
-  if (search) query = query.ilike('code', `%${search}%`)
-  const { data, error } = await query
+  const buildQuery = (includeFileType) => {
+    const surveysFields = includeFileType ? 'file_type, count' : 'count'
+    let query = supabase
+      .from('projects')
+      .select(`*, project_images(id, url, sort_order, is_main), surveys(${surveysFields})`)
+      .order('created_at', { ascending: false })
+    if (search) query = query.ilike('code', `%${search}%`)
+    return query
+  }
+
+  let { data, error } = await buildQuery(true)
+  if (error?.code === '42703') {
+    // file_type column not yet migrated — fall back without it
+    ;({ data, error } = await buildQuery(false))
+  }
   if (error) throw new Error(error.message)
+
+  const all      = (data ?? []).flatMap(p => p.surveys ?? [])
+  const ltcCount = all.filter(s => s.file_type === 'ltc').length
+  const stcCount = all.filter(s => s.file_type === 'stc').length
+  const levCount = all.filter(s => !s.file_type || s.file_type === 'levantamento').length
+  console.log(`[projects list] surveys total: ${all.length} | ltc: ${ltcCount} | stc: ${stcCount} | levantamentos: ${levCount}`)
+
   return (data ?? []).map(transform)
 }
 
 export async function getProjectById(id) {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('projects')
-    .select('*, project_images(id, url, sort_order, is_main), surveys(id, file, date, created_at, metering, count, status)')
+    .select('*, project_images(id, url, sort_order, is_main), surveys(id, file, file_type, date, created_at, metering, count, status)')
     .eq('id', id)
     .single()
+  if (error?.code === '42703') {
+    // file_type column not yet migrated — fall back without it
+    ;({ data, error } = await supabase
+      .from('projects')
+      .select('*, project_images(id, url, sort_order, is_main), surveys(id, file, date, created_at, metering, count, status)')
+      .eq('id', id)
+      .single())
+  }
   if (error) throw new Error(error.message)
   const base = transform(data)
   const rawSurveys = data.surveys ?? []
+  const levantamentos = rawSurveys.filter(s => !s.file_type || s.file_type === 'levantamento')
+  const levantamentoCount = levantamentos.reduce((sum, s) => sum + Math.max(parseInt(s.count, 10) || 1, 1), 0)
   const sortedSurveys = sortSurveysByDateDesc(rawSurveys).slice(0, 10)
   debugSurveyDates(rawSurveys, `project[${id}]`)
-  const latestDate = getLatestSurveyDate(rawSurveys)
+  const latestDate = getLatestSurveyDate(levantamentos)
   return {
     ...base,
-    // Override project.date with the real latest survey date
+    surveyCount: levantamentoCount,
+    // Override project.date with the real latest levantamento date
     date: latestDate ? formatDateBR(latestDate) : base.date,
     images: (data.project_images ?? [])
       .sort((a, b) => a.sort_order - b.sort_order)
@@ -81,6 +128,9 @@ export async function createProject(payload) {
 
   const hasWarning  = Array.isArray(statuses) && statuses.some(s => s.variant === 'warning')
   const rehabStatus = rehabilitationStatus ?? (hasWarning ? 'in_progress' : null)
+  const fileType    = classifyFileType(fileName)
+  const isLev       = fileType === 'levantamento'
+  console.log(`[createProject] arquivo "${fileName ?? ''}" classificado como: ${fileType.toUpperCase()}`)
 
   const { data: project, error } = await supabase
     .from('projects')
@@ -88,7 +138,7 @@ export async function createProject(payload) {
       code,
       statuses:              statuses ?? [],
       date:                  date ? new Date(date).toISOString() : new Date().toISOString(),
-      survey_count:          Number(surveyCount) || 0,
+      survey_count:          isLev ? (Number(surveyCount) || 0) : 0,
       metragem:              metragem    ?? null,
       file_name:             fileName    ?? null,
       notes:                 notes       ?? null,
@@ -101,16 +151,23 @@ export async function createProject(payload) {
     .single()
   if (error) throw new Error(error.message)
 
-  // Auto-create first survey entry
-  await supabase.from('surveys').insert({
+  // Auto-create first survey entry — classificado pelo nome do arquivo (LTC/STC nunca contam como levantamento)
+  const surveyData = {
     project_id: project.id,
     local:      code,
     file:       fileName ?? '',
     status:     (Array.isArray(statuses) && statuses[0]?.variant) ? statuses[0].variant : 'success',
     date:       date ? new Date(date).toISOString() : new Date().toISOString(),
-    count:      Number(surveyCount) || 1,
-    metering:   metragem ?? (projectLength != null ? String(projectLength) : null),
-  })
+    count:      isLev ? (Number(surveyCount) || 1) : 0,
+    metering:   isLev ? (metragem ?? (projectLength != null ? String(projectLength) : null)) : null,
+    file_type:  fileType,
+  }
+  let { error: surveyErr } = await supabase.from('surveys').insert(surveyData)
+  if (surveyErr?.code === '42703') {
+    delete surveyData.file_type
+    ;({ error: surveyErr } = await supabase.from('surveys').insert(surveyData))
+  }
+  if (surveyErr) console.error('[createProject] survey insert error:', surveyErr.message)
 
   logAction({
     action: 'create_project',
@@ -151,20 +208,34 @@ export async function updateProject(id, payload, { registerSurvey = false } = {}
   if (registerSurvey) {
     const surveyStatus = Array.isArray(updated.statuses) && updated.statuses[0]?.variant
       ? updated.statuses[0].variant : 'success'
-    await supabase.from('surveys').insert({
+    const fileType = classifyFileType(updated.file_name)
+    const isLev    = fileType === 'levantamento'
+    console.log(`[updateProject] arquivo "${updated.file_name ?? ''}" classificado como: ${fileType.toUpperCase()}`)
+
+    const surveyData = {
       project_id: id,
       local:      updated.code,
       file:       updated.file_name ?? '',
       status:     surveyStatus,
       date:       updated.date ?? new Date().toISOString(),
-      count:      updated.survey_count || 1,
-      metering:   updated.project_length ? String(updated.project_length) : null,
-    })
-    // Increment survey count
-    await supabase
-      .from('projects')
-      .update({ survey_count: (updated.survey_count ?? 0) + 1 })
-      .eq('id', id)
+      count:      isLev ? (updated.survey_count || 1) : 0,
+      metering:   isLev ? (updated.project_length ? String(updated.project_length) : null) : null,
+      file_type:  fileType,
+    }
+    let { error: surveyErr } = await supabase.from('surveys').insert(surveyData)
+    if (surveyErr?.code === '42703') {
+      delete surveyData.file_type
+      ;({ error: surveyErr } = await supabase.from('surveys').insert(surveyData))
+    }
+    if (surveyErr) console.error('[updateProject] survey insert error:', surveyErr.message)
+
+    // Increment survey count — apenas para levantamentos reais
+    if (isLev) {
+      await supabase
+        .from('projects')
+        .update({ survey_count: (updated.survey_count ?? 0) + 1 })
+        .eq('id', id)
+    }
   }
 
   // Audit: general edit
@@ -235,6 +306,14 @@ export async function deleteProjectCascade(projectId) {
       if (storageErr) console.warn('[delete] storage files:', storageErr.message)
       else console.log('[delete] Deleted storage files:', paths.length)
     }
+  }
+
+  // Delete project files (LTC/STC)
+  try {
+    await deleteAllProjectFiles(projectId)
+    console.log('[delete] Deleted project_files')
+  } catch (err) {
+    console.warn('[delete] project_files:', err.message)
   }
 
   // Delete surveys
@@ -350,28 +429,47 @@ export async function getProjectSurveys(projectId) {
     .from('surveys')
     .select('*')
     .eq('project_id', projectId)
-    .limit(100)
+    .order('date', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(200)
   if (error) throw new Error(error.message)
-  // Sort client-side using parseLocalDate to avoid UTC shift
-  return sortSurveysByDateDesc(data ?? []).slice(0, 20).map(s => ({ ...s, createdAt: s.created_at }))
+  // Client-side sort guarantees correct order regardless of server behavior
+  return sortSurveysByDateDesc(data ?? []).map(s => ({ ...s, createdAt: s.created_at }))
 }
 
 export async function addSurveyToProject(projectId, payload) {
-  const { file, date, count = 1, metering, status } = payload
+  const { file, date, count = 1, metering, status, observations } = payload
   const { data: project } = await supabase
     .from('projects').select('code, statuses, file_name').eq('id', projectId).single()
+  // Classificação automática pelo nome do arquivo — ignora qualquer tipo manual
+  const candidateName = file ?? project?.file_name ?? ''
+  const fileType = classifyFileType(candidateName)
+  const isLev    = fileType === 'levantamento'
+  console.log(`[addSurveyToProject] arquivo "${candidateName}" classificado como: ${fileType.toUpperCase()}`)
   const surveyStatus = status
     ?? (Array.isArray(project?.statuses) && project.statuses[0]?.variant ? project.statuses[0].variant : 'success')
 
-  const { data, error } = await supabase.from('surveys').insert({
+  const surveyData = {
     project_id: projectId,
     local:      project?.code ?? '',
-    file:       file ?? project?.file_name ?? '',
+    file:       file ?? (isLev ? project?.file_name ?? '' : ''),
     status:     surveyStatus,
     date:       date ? new Date(date).toISOString() : new Date().toISOString(),
-    count:      parseInt(count) || 1,
-    metering:   metering ?? null,
-  }).select().single()
+    // LTC/STC do not carry count or metering — they are not production entries
+    count:      isLev ? (parseInt(count) || 1) : 0,
+    metering:   isLev ? (metering ?? null) : null,
+    file_type:  fileType,
+  }
+  if (isLev && observations) surveyData.observations = observations
+
+  let { data, error } = await supabase.from('surveys').insert(surveyData).select().single()
+
+  // Graceful fallback if optional columns don't exist yet
+  if (error?.code === '42703') {
+    if ('observations' in surveyData) delete surveyData.observations
+    if ('file_type' in surveyData) delete surveyData.file_type
+    ;({ data, error } = await supabase.from('surveys').insert(surveyData).select().single())
+  }
   if (error) throw new Error(error.message)
 
   logAction({
@@ -380,13 +478,15 @@ export async function addSurveyToProject(projectId, payload) {
     entityId: data.id,
     entityName: file ?? project?.file_name ?? String(projectId),
     projectId: projectId,
-    description: `Adicionou levantamento ao projeto ${project?.code ?? projectId}`,
-    newValue: { file, count, metering },
+    description: `Adicionou ${fileType === 'levantamento' ? 'levantamento' : fileType.toUpperCase()} ao projeto ${project?.code ?? projectId}`,
+    newValue: { file, fileType, count: isLev ? count : 0, metering: isLev ? metering : null },
   })
 
-  // Increment survey count
-  const { data: p } = await supabase.from('projects').select('survey_count').eq('id', projectId).single()
-  await supabase.from('projects').update({ survey_count: (p?.survey_count ?? 0) + 1 }).eq('id', projectId)
+  // Only increment survey_count for real levantamentos
+  if (isLev) {
+    const { data: p } = await supabase.from('projects').select('survey_count').eq('id', projectId).single()
+    await supabase.from('projects').update({ survey_count: (p?.survey_count ?? 0) + (parseInt(count) || 1) }).eq('id', projectId)
+  }
 
   return { ...data, createdAt: data.created_at }
 }

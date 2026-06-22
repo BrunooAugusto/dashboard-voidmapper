@@ -48,16 +48,20 @@ create table if not exists project_images (
 
 -- ── Surveys (activity log) ────────────────────────────────────
 create table if not exists surveys (
-  id         serial      primary key,
-  project_id integer     references projects(id) on delete cascade,
-  local      text        not null,
-  file       text        not null default '',
-  status     text        not null default 'success',
-  date       timestamptz not null,
-  count      integer     not null default 1,
-  metering   text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  id           serial      primary key,
+  project_id   integer     references projects(id) on delete cascade,
+  local        text        not null,
+  file         text        not null default '',
+  status       text        not null default 'success',
+  date         timestamptz not null,
+  count        integer     not null default 1,
+  metering     text,
+  observations text,
+  -- LEVANTAMENTO conta para métricas/gráficos; LTC/STC são apenas para análise e relatório semanal
+  file_type    text        not null default 'levantamento'
+               check (file_type in ('levantamento', 'ltc', 'stc')),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
 );
 
 -- ── Monitoring ────────────────────────────────────────────────

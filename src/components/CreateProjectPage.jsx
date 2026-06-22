@@ -6,7 +6,6 @@ import FormInput from './FormInput'
 import NumberStepper from './NumberStepper'
 import StatusPicker from './StatusPicker'
 import UploadZone from './UploadZone'
-import { cn } from '../lib/cn'
 import { createProject, uploadProjectImage } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 
@@ -25,7 +24,6 @@ const EMPTY_FORM = {
   notes: '',
   projectLink: '',
 }
-
 
 export default function CreateProjectPage({ onBack }) {
   const { t } = useLanguage()
@@ -54,10 +52,12 @@ export default function CreateProjectPage({ onBack }) {
         projectUrl:    form.projectLink || null,
         level:         form.level       ? parseInt(form.level, 10) : null,
       })
-      // Upload any selected images now that we have a project ID
+
+      // Upload project images
       for (const file of files) {
         await uploadProjectImage(newProject.id, file)
       }
+
       onBack?.()
     } catch (err) {
       setError(err.message)
@@ -85,8 +85,12 @@ export default function CreateProjectPage({ onBack }) {
         <form onSubmit={handleSubmit}>
           <div className="p-8 3xl:p-10 grid grid-cols-1 lg:grid-cols-2 gap-8 3xl:gap-10">
 
-            {/* Left column: form fields */}
+            {/* Left column: survey data fields */}
             <div className="flex flex-col gap-5">
+
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-ink-400 mb-4">Dados do Levantamento</p>
+              </div>
 
               <FormField label={t('form.projectName')}>
                 <FormInput
@@ -198,8 +202,8 @@ export default function CreateProjectPage({ onBack }) {
               </div>
             </div>
 
-            {/* Right column: project images + measurement image */}
-            <div className="flex flex-col gap-5">
+            {/* Right column: images */}
+            <div className="flex flex-col gap-6">
               <UploadZone onFilesChange={setFiles} />
             </div>
 

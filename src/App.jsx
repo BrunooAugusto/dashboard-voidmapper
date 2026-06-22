@@ -11,6 +11,7 @@ import ProjectsPage from './components/ProjectsPage'
 import ProjectDetailsPage from './components/ProjectDetailsPage'
 import CreateProjectPage from './components/CreateProjectPage'
 import EditProjectPage from './components/EditProjectPage'
+import NewSurveyPage from './components/NewSurveyPage'
 import WeeklyReportPage from './components/WeeklyReportPage'
 import MonitoringPage from './components/MonitoringPage'
 import MonitoringEditPage from './components/MonitoringEditPage'
@@ -86,6 +87,7 @@ export default function App() {
   const [selectedProject, setSelectedProject]       = useState(null)
   const [editingMonitoringRow, setEditingMonitoringRow] = useState(null)
   const [projectsKey, setProjectsKey]               = useState(0)
+  const [detailKey, setDetailKey]                   = useState(0)
   const [monitoringKey, setMonitoringKey]           = useState(0)
 
   function setUserProfile(profile) {
@@ -164,7 +166,7 @@ export default function App() {
 
   function handleNavigate(id) {
     setActiveNav(id)
-    if (id !== 'project-details' && id !== 'edit-project') {
+    if (id !== 'project-details' && id !== 'edit-project' && id !== 'new-survey') {
       setSelectedProject(null)
     }
     if (id !== 'monitorados') {
@@ -182,21 +184,36 @@ export default function App() {
     setActiveNav('edit-project')
   }
 
+  function handleNewSurvey(project) {
+    setSelectedProject(project ?? selectedProject)
+    setActiveNav('new-survey')
+  }
+
   function renderContent() {
+    if (activeNav === 'new-survey' && selectedProject) {
+      return (
+        <NewSurveyPage
+          project={selectedProject}
+          onBack={() => { setProjectsKey(k => k + 1); setDetailKey(k => k + 1); setActiveNav('project-details') }}
+        />
+      )
+    }
     if (activeNav === 'edit-project') {
       return (
         <EditProjectPage
           project={selectedProject}
-          onBack={() => { setProjectsKey(k => k + 1); setActiveNav('project-details') }}
+          onBack={() => { setProjectsKey(k => k + 1); setDetailKey(k => k + 1); setActiveNav('project-details') }}
         />
       )
     }
     if (activeNav === 'project-details' && selectedProject) {
       return (
         <ProjectDetailsPage
+          key={detailKey}
           project={selectedProject}
           onBack={() => handleNavigate('projetos')}
           onEdit={handleEditProject}
+          onNewSurvey={handleNewSurvey}
           onDelete={() => { setProjectsKey(k => k + 1); handleNavigate('projetos') }}
         />
       )

@@ -1,114 +1,202 @@
 import { useState, useEffect, useMemo } from 'react'
-import { ChevronDown } from 'lucide-react'
 import Card from './Card'
 import SurveyAreaChart from './WeeklyBarChart'
 import { cn } from '../lib/cn'
-import { getSurveyAnalytics } from '../services/surveyService'
+import { getSurveyAnalytics, getAvailableYears } from '../services/surveyService'
 import { useLanguage } from '../contexts/LanguageContext'
 
-const PERIODS = ['weekly', 'monthly', 'annual']
+const PERIODS = [
+  { key: 'weekly',  label: 'Semanal' },
+  { key: 'monthly', label: 'Mensal'  },
+  { key: 'annual',  label: 'Anual'   },
+]
 
-// Zero-filled fallbacks so chart never receives undefined
-const EMPTY_WEEKLY  = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'].map(l => ({ label: l, metragem: 0 }))
-const EMPTY_MONTHLY = ['Sem 1','Sem 2','Sem 3','Sem 4'].map(l => ({ label: l, metragem: 0 }))
-const EMPTY_ANNUAL  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map(l => ({ label: l, metragem: 0 }))
+const MONTH_NAMES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
-function emptyFallback(period) {
-  if (period === 'monthly') return EMPTY_MONTHLY
-  if (period === 'annual')  return EMPTY_ANNUAL
-  return EMPTY_WEEKLY
+function buildFallback(period, { year, month, weekOffset }) {
+  if (period === 'weekly') {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const dow = today.getDay()
+    const daysToMon = dow === 0 ? 6 : dow - 1
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - daysToMon + weekOffset * 7)
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday)
+      d.setDate(monday.getDate() + i)
+      return {
+        label: `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`,
+        metragem: 0,
+        count: 0,
+      }
+    })
+  }
+  if (period === 'monthly') {
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const weekCount = Math.ceil(daysInMonth / 7)
+    return Array.from({ length: weekCount }, (_, i) => ({ label: `Semana ${i + 1}`, metragem: 0, count: 0 }))
+  }
+  // annual
+  return MONTH_NAMES.map(l => ({ label: l, metragem: 0, count: 0 }))
+}
+
+function getWeekRange(weekOffset) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dow = today.getDay()
+  const daysToMon = dow === 0 ? 6 : dow - 1
+  const start = new Date(today)
+  start.setDate(today.getDate() - daysToMon + weekOffset * 7)
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`
+  return `${fmt(start)} — ${fmt(end)}`
 }
 
 export default function WeeklyChartCard() {
-  const { t, lang } = useLanguage()
+  const { t } = useLanguage()
+
+  const nowYear  = new Date().getFullYear()
+  const nowMonth = new Date().getMonth()
+
   const [period, setPeriod]               = useState('weekly')
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().getMonth())
-  const [chartData, setChartData]         = useState(null)
-  const [loading, setLoading]             = useState(true)
-  const [error, setError]                 = useState(null)
+  const [metric, setMetric]               = useState('metragem')
+  const [selectedYear, setSelectedYear]   = useState(nowYear)
+  const [selectedMonth, setSelectedMonth] = useState(nowMonth)
+  const [weekOffset, setWeekOffset]       = useState(0)
+  const [availableYears, setAvailableYears] = useState(() =>
+    Array.from({ length: nowYear - 2024 + 1 }, (_, i) => 2024 + i)
+  )
+  const [chartData, setChartData] = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+
+  useEffect(() => {
+    getAvailableYears().then(setAvailableYears).catch(() => {})
+  }, [])
 
   useEffect(() => {
     setLoading(true)
     setError(null)
-    const month = period === 'monthly' ? selectedMonth : undefined
-    getSurveyAnalytics(period, month)
+    getSurveyAnalytics({ period, year: selectedYear, month: selectedMonth, weekOffset })
       .then(data => { setChartData(data); setLoading(false) })
       .catch(err  => { setError(err.message); setLoading(false) })
-  }, [period, selectedMonth])
+  }, [period, selectedYear, selectedMonth, weekOffset])
 
-  const monthNames = useMemo(
-    () =>
-      Array.from({ length: 12 }, (_, i) => {
-        const name = new Intl.DateTimeFormat(lang === 'pt-BR' ? 'pt-BR' : 'en-US', { month: 'long' })
-          .format(new Date(2024, i, 1))
-        return name.charAt(0).toUpperCase() + name.slice(1)
-      }),
-    [lang],
+  const weekRange    = useMemo(() => getWeekRange(weekOffset), [weekOffset])
+  const fallbackData = useMemo(
+    () => buildFallback(period, { year: selectedYear, month: selectedMonth, weekOffset }),
+    [period, selectedYear, selectedMonth, weekOffset],
   )
+  const activeData = chartData ?? fallbackData
 
-  const activeData = chartData ?? emptyFallback(period)
-  const isEmpty    = !loading && !error && activeData.every(d => (d.metragem ?? 0) === 0)
+  const isEmpty = !loading && !error && activeData.every(d => {
+    const v = metric === 'levantamentos' ? (d.count ?? 0) : (d.metragem ?? 0)
+    return v === 0
+  })
+
+  const title    = metric === 'levantamentos' ? t('chart.titleLevantamentos') : t('chart.titleMetragem')
+  const subtitle = t('chart.subtitleGrouped')
 
   return (
-    <Card className="h-[320px] 3xl:h-[360px] 4xl:h-[400px] 5xl:h-[440px]">
+    <Card className="h-[390px] 3xl:h-[430px] 4xl:h-[470px] 5xl:h-[510px]">
 
       {/* Header */}
-      <div className="px-4 py-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-border-soft shrink-0">
-        <div>
-          <h3 className="text-base font-semibold text-ink-900 leading-tight">
-            {t('chart.title')}
-          </h3>
-          <p className="text-xs text-ink-400 mt-0.5 leading-tight">
-            {t('chart.subtitle')}
-          </p>
+      <div className="px-4 py-3 flex flex-col gap-2 border-b border-border-soft shrink-0">
+
+        {/* Row 1: title | year selector + metric toggle */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-ink-900 leading-tight truncate">{title}</h3>
+            <p className="text-xs text-ink-400 mt-0.5 leading-tight">{subtitle}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Year selector — not applicable to weekly (navigated via offset) */}
+            {period !== 'weekly' && (
+              <select
+                value={selectedYear}
+                onChange={e => setSelectedYear(Number(e.target.value))}
+                className="h-7 px-2 text-xs rounded-lg border border-border-soft bg-surface text-ink-900 focus:outline-none focus:border-brand-400 transition-colors cursor-pointer"
+              >
+                {availableYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
+            )}
+            {/* Metric toggle */}
+            <div className="flex items-center rounded-lg bg-page p-0.5 gap-0.5">
+              {['metragem', 'levantamentos'].map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMetric(m)}
+                  className={cn(
+                    'h-7 px-2.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
+                    metric === m
+                      ? 'bg-surface text-ink-900 border border-border-soft'
+                      : 'text-ink-500 hover:text-ink-700',
+                  )}
+                >
+                  {t(`chart.metric.${m}`)}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
-
-          {/* Period tabs */}
-          <div className="flex items-center rounded-lg bg-page p-0.5 gap-0.5">
-            {PERIODS.map((p) => (
+        {/* Row 2: period tabs + month selector (monthly only) */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1">
+            {PERIODS.map(tab => (
               <button
-                key={p}
+                key={tab.key}
                 type="button"
-                onClick={() => setPeriod(p)}
+                onClick={() => setPeriod(tab.key)}
                 className={cn(
-                  'h-7 px-3 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
-                  period === p
-                    ? 'bg-surface text-ink-900 border border-border-soft'
-                    : 'text-ink-500 hover:text-ink-700',
+                  'h-6 px-2.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap',
+                  period === tab.key
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-page text-ink-500 hover:text-ink-700',
                 )}
               >
-                {t(`chart.tab.${p}`)}
+                {tab.label}
               </button>
             ))}
           </div>
-
-          {/* Month selector — only in monthly mode */}
           {period === 'monthly' && (
-            <div className="relative">
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                className={cn(
-                  'h-7 pl-3 pr-7 rounded-md text-xs font-medium appearance-none cursor-pointer',
-                  'bg-surface border border-border-soft text-ink-700',
-                  'outline-none focus:border-brand-300 transition-colors',
-                  'w-[124px]',
-                )}
-              >
-                {monthNames.map((name, i) => (
-                  <option key={i} value={i}>{name}</option>
-                ))}
-              </select>
-              <ChevronDown
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-ink-400 pointer-events-none"
-                strokeWidth={2.5}
-              />
-            </div>
+            <select
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(Number(e.target.value))}
+              className="h-6 px-2 text-xs rounded-lg border border-border-soft bg-surface text-ink-900 focus:outline-none focus:border-brand-400 transition-colors cursor-pointer"
+            >
+              {MONTH_NAMES.map((name, i) => (
+                <option key={i} value={i}>{name}</option>
+              ))}
+            </select>
           )}
-
         </div>
+
+        {/* Row 3: week navigation — weekly only */}
+        {period === 'weekly' && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setWeekOffset(w => w - 1)}
+              className="h-6 px-2 rounded-md bg-page text-xs text-ink-500 hover:text-ink-700 transition-colors"
+            >
+              ←
+            </button>
+            <span className="text-xs text-ink-700 font-medium">{weekRange}</span>
+            <button
+              type="button"
+              onClick={() => setWeekOffset(w => w + 1)}
+              disabled={weekOffset >= 0}
+              className="h-6 px-2 rounded-md bg-page text-xs text-ink-500 hover:text-ink-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              →
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Chart area */}
@@ -136,7 +224,7 @@ export default function WeeklyChartCard() {
           </div>
         )}
 
-        <SurveyAreaChart data={activeData} />
+        <SurveyAreaChart data={activeData} metric={metric} />
       </div>
 
     </Card>

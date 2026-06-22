@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase.js'
 import { aggregateChartData } from './surveyService.js'
 import { getMonitoringRows } from './monitoringService.js'
+import { getSurveyDate, formatSurveyDate } from '../lib/surveyDates.js'
 
 // Build weekly metragem breakdown (used in the report section)
 function computeWeeklyBreakdown(surveys, start, end) {
@@ -17,8 +18,8 @@ function computeWeeklyBreakdown(surveys, start, end) {
     const actualEnd = wEnd > end ? new Date(end) : wEnd
 
     const wSurveys = surveys.filter(s => {
-      const d = new Date(s.created_at)
-      return d >= cur && d <= actualEnd
+      const d = getSurveyDate(s)
+      return d && d >= cur && d <= actualEnd
     })
 
     const metragem = wSurveys.reduce((sum, s) => {
@@ -55,23 +56,34 @@ function periodFromRange(start, end) {
 
 export async function getWeeklyReportFull(start, end) {
   // ── 1. Fetch all surveys in the period with their project data ────────────
-  let q = supabase
-    .from('surveys')
-    .select(
-      'id, local, file, count, status, metering, created_at, ' +
-      'projects(id, code, statuses, rehabilitation_status, file_name, notes, project_length, project_images(url))'
-    )
-    .order('created_at', { ascending: false })
-  if (start) q = q.gte('created_at', start.toISOString())
-  if (end)   q = q.lte('created_at', end.toISOString())
+  const buildQuery = (includeFileType) => {
+    const fields = includeFileType
+      ? 'id, local, file, file_type, count, status, metering, created_at, date, '
+      : 'id, local, file, count, status, metering, created_at, date, '
+    let q = supabase
+      .from('surveys')
+      .select(fields + 'projects(id, code, statuses, rehabilitation_status, file_name, notes, project_length, project_images(url))')
+      .order('created_at', { ascending: false })
+    if (start) q = q.gte('created_at', start.toISOString())
+    if (end)   q = q.lte('created_at', end.toISOString())
+    return q
+  }
 
-  const { data: rawSurveys, error: surveysError } = await q
+  let { data: rawSurveys, error: surveysError } = await buildQuery(true)
+  if (surveysError?.code === '42703') {
+    // file_type column not yet migrated — treat all as levantamentos
+    console.warn('[report] file_type column not found, treating all surveys as levantamentos')
+    ;({ data: rawSurveys, error: surveysError } = await buildQuery(false))
+  }
   if (surveysError) throw new Error(surveysError.message)
 
+  // All surveys (used for project tracking — a project touched by LTC/STC still appears)
   const surveys = rawSurveys ?? []
+  // Only real levantamentos feed production metrics, tables, charts and metragem
+  const levantamentos = surveys.filter(s => !s.file_type || s.file_type === 'levantamento')
 
   // ── 2. Build survey rows for the "Novos Levantamentos" table ─────────────
-  const surveyRows = surveys.map(s => {
+  const surveyRows = levantamentos.map(s => {
     const ps = s.projects?.statuses
     const statuses = Array.isArray(ps) && ps.length > 0
       ? ps.map(st => ({ variant: st.variant }))
@@ -82,7 +94,7 @@ export async function getWeeklyReportFull(start, end) {
       local:    s.local,
       file:     s.file || '—',
       statuses,
-      date:     new Date(s.created_at).toLocaleDateString('pt-BR'),
+      date:     formatSurveyDate(s.date || s.created_at),
       surveys:  s.count,
       metering: rawMetering ? `${rawMetering} m` : '—',
     }
@@ -160,8 +172,8 @@ export async function getWeeklyReportFull(start, end) {
       }
     })
 
-  // ── 7. Metragem metrics ───────────────────────────────────────────────────
-  const meteringValues = surveys.map(s => {
+  // ── 7. Metragem metrics (levantamentos only) ─────────────────────────────
+  const meteringValues = levantamentos.map(s => {
     const raw = s.metering ?? (s.projects?.project_length != null ? String(s.projects.project_length) : null)
     if (!raw) return null
     const val = parseFloat(raw)
@@ -176,13 +188,13 @@ export async function getWeeklyReportFull(start, end) {
     max: meteringValues.length > 0 ? Math.max(...meteringValues) : 0,
   }
 
-  // ── 8. Chart data — same aggregateChartData function used by the dashboard ─
-  const chartData = aggregateChartData(surveys, periodFromRange(start, end))
+  // ── 8. Chart data — levantamentos only (LTC/STC excluded from graphs) ─────
+  const chartData = aggregateChartData(levantamentos, periodFromRange(start, end))
 
   // ── 9. Monitoring rows (current state — overdue alerts are time-sensitive) ─
   const monitoring = await getMonitoringRows()
 
-  const weeklyBreakdown = computeWeeklyBreakdown(surveys, start, end)
+  const weeklyBreakdown = computeWeeklyBreakdown(levantamentos, start, end)
 
   return { metrics, surveys: surveyRows, rehab, monitoring, deformationProjects, errorProjects, metragemMetrics, chartData, weeklyBreakdown }
 }
