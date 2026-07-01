@@ -138,7 +138,7 @@ const t = {
     // ── Project details ─────────────────────────────────────────────────────
     'detail.back':            'Projetos',
     'detail.editProject':     'Editar Projeto',
-    'detail.newSurvey':       '+ Novo Levantamento',
+    'detail.newSurvey':       'Novo Levantamento',
     'detail.fileName':        'Nome do Arquivo',
     'detail.lastSurvey':      'Último Levant.',
     'detail.surveysCount':    'Levantamentos',

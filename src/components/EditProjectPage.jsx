@@ -3,7 +3,6 @@ import { ArrowLeft } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
-import NumberStepper from './NumberStepper'
 import StatusPicker from './StatusPicker'
 import ImageManager from './ImageManager'
 import { cn } from '../lib/cn'
@@ -27,7 +26,6 @@ function buildInitialForm(project) {
   return {
     projectName:          project?.code              ?? '',
     date:                 parseDateToInput(project?.date ?? ''),
-    surveys:              project?.surveyCount        ?? (typeof project?.surveys === 'number' ? project.surveys : 0),
     projectLength:        String(project?.projectLength ?? ''),
     fileName:             project?.fileName          ?? '',
     level:                project?.level             != null ? String(project.level) : '',
@@ -65,7 +63,6 @@ export default function EditProjectPage({ project, onBack }) {
       await updateProject(project.id, {
         code:                 form.projectName,
         date:                 form.date,
-        surveyCount:          Number(form.surveys),
         projectLength:        form.projectLength ? parseFloat(form.projectLength) : null,
         fileName:             form.fileName    || null,
         statuses:             form.statuses.map(v => ({ variant: v })),
@@ -124,21 +121,13 @@ export default function EditProjectPage({ project, onBack }) {
                 />
               </FormField>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label={t('form.date')}>
-                  <FormInput
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => set('date', e.target.value)}
-                  />
-                </FormField>
-                <FormField label={t('form.surveyCount')}>
-                  <NumberStepper
-                    value={form.surveys}
-                    onChange={(v) => set('surveys', v)}
-                  />
-                </FormField>
-              </div>
+              <FormField label={t('form.date')}>
+                <FormInput
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => set('date', e.target.value)}
+                />
+              </FormField>
 
               <FormField label={t('form.projectLength')}>
                 <div className="relative">

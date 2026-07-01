@@ -1,13 +1,12 @@
 import { supabase } from '../lib/supabase.js'
 import { formatSurveyDate, getSurveyDate, sortSurveysByDateDesc } from '../lib/surveyDates.js'
-import { METRICS_START_DATE } from '../config/metricsStartDate.js'
 
 // ── Dashboard metrics ────────────────────────────────────────────────────────
 
 export async function getMetrics() {
   const [projectsRes, surveysRes] = await Promise.all([
     supabase.from('projects').select('statuses, rehabilitation_status'),
-    supabase.from('surveys').select('count, file_type').gte('date', METRICS_START_DATE),
+    supabase.from('surveys').select('count, file_type'),
   ])
 
   let totalSurveys = 0
@@ -58,12 +57,12 @@ export async function getRecentSurveys() {
   since.setDate(since.getDate() - 7)
   since.setHours(0, 0, 0, 0)
 
+  // Filter by survey DATE (not created_at) so backdated entries don't appear here
   const { data, error } = await supabase
     .from('surveys')
     .select('*, projects(statuses, project_length)')
-    .gte('date', METRICS_START_DATE)
-    .gte('created_at', since.toISOString())
-    .order('created_at', { ascending: false })
+    .gte('date', since.toISOString())
+    .order('date', { ascending: false })
   if (error) throw new Error(error.message)
 
   // Only levantamentos count toward production metrics
@@ -261,9 +260,9 @@ export function aggregateChartData(surveys, granularity, opts = {}) {
 // ── Available years (dynamic, based on actual survey dates) ─────────────────
 
 export async function getAvailableYears() {
-  let { data, error } = await supabase.from('surveys').select('date, created_at, file_type').gte('date', METRICS_START_DATE)
+  let { data, error } = await supabase.from('surveys').select('date, created_at, file_type')
   if (error?.code === '42703') {
-    ;({ data } = await supabase.from('surveys').select('date, created_at').gte('date', METRICS_START_DATE))
+    ;({ data } = await supabase.from('surveys').select('date, created_at'))
   }
   const curYear = new Date().getFullYear()
   const years = new Set()
@@ -318,16 +317,16 @@ export async function getSurveyAnalytics({ period = 'weekly', year, month, weekO
     granularity = 'month'
   }
 
+  // Fetch ALL surveys without date restriction — filtering by survey DATE happens client-side
+  // so backdated historical surveys always appear in their correct period
   let { data, error } = await supabase
     .from('surveys')
     .select('id, date, created_at, metering, count, file_type')
-    .gte('date', METRICS_START_DATE)
   if (error?.code === '42703') {
     console.warn('[chart] file_type column not found, treating all surveys as levantamentos')
     ;({ data, error } = await supabase
       .from('surveys')
-      .select('id, date, created_at, metering, count')
-      .gte('date', METRICS_START_DATE))
+      .select('id, date, created_at, metering, count'))
   }
   if (error) throw new Error(error.message)
 

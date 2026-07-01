@@ -3,9 +3,9 @@ import { ArrowLeft } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
-import NumberStepper from './NumberStepper'
 import StatusPicker from './StatusPicker'
-import { addSurveyToProject } from '../services/projectService'
+import UploadZone from './UploadZone'
+import { addSurveyToProject, uploadSurveyImage } from '../services/projectService'
 import { useLanguage } from '../contexts/LanguageContext'
 
 const today = new Date().toISOString().split('T')[0]
@@ -14,14 +14,14 @@ export default function NewSurveyPage({ project, onBack }) {
   const { t } = useLanguage()
   const [form, setForm] = useState({
     date: today,
-    count: 1,
     metering: '',
     fileName: project?.fileName ?? '',
     statuses: project?.statuses?.map(s => s.variant).filter(Boolean) ?? ['success'],
     observations: '',
   })
+  const [files, setFiles]     = useState([])
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [error, setError]     = useState(null)
 
   function set(key, val) {
     setForm(prev => ({ ...prev, [key]: val }))
@@ -33,14 +33,19 @@ export default function NewSurveyPage({ project, onBack }) {
     setLoading(true)
     setError(null)
     try {
-      await addSurveyToProject(project.id, {
+      const survey = await addSurveyToProject(project.id, {
         date:         form.date,
-        count:        parseInt(form.count) || 1,
         metering:     form.metering || null,
         file:         form.fileName || null,
         status:       form.statuses[0] || null,
         observations: form.observations || null,
       })
+
+      // Upload images linked to this specific survey
+      for (const file of files) {
+        await uploadSurveyImage(project.id, survey.id, file)
+      }
+
       onBack?.()
     } catch (err) {
       setError(err.message)
@@ -68,7 +73,9 @@ export default function NewSurveyPage({ project, onBack }) {
 
       <Card>
         <form onSubmit={handleSubmit}>
-          <div className="p-8 3xl:p-10 max-w-2xl">
+          <div className="p-8 3xl:p-10 grid grid-cols-1 lg:grid-cols-2 gap-8 3xl:gap-10">
+
+            {/* Left column: fields */}
             <div className="flex flex-col gap-5">
 
               <div>
@@ -98,21 +105,13 @@ export default function NewSurveyPage({ project, onBack }) {
                 })()}
               </FormField>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label={t('survey.date')}>
-                  <FormInput
-                    type="date"
-                    value={form.date}
-                    onChange={e => set('date', e.target.value)}
-                  />
-                </FormField>
-                <FormField label={t('survey.count')}>
-                  <NumberStepper
-                    value={form.count}
-                    onChange={v => set('count', v)}
-                  />
-                </FormField>
-              </div>
+              <FormField label={t('survey.date')}>
+                <FormInput
+                  type="date"
+                  value={form.date}
+                  onChange={e => set('date', e.target.value)}
+                />
+              </FormField>
 
               <FormField label={t('survey.metering')}>
                 <div className="relative">
@@ -169,6 +168,12 @@ export default function NewSurveyPage({ project, onBack }) {
                 </button>
               </div>
             </div>
+
+            {/* Right column: images */}
+            <div className="flex flex-col gap-6">
+              <UploadZone onFilesChange={setFiles} />
+            </div>
+
           </div>
         </form>
       </Card>

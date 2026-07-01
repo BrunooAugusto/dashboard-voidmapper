@@ -3,7 +3,6 @@ import { ArrowLeft } from 'lucide-react'
 import Card from './Card'
 import FormField from './FormField'
 import FormInput from './FormInput'
-import NumberStepper from './NumberStepper'
 import StatusPicker from './StatusPicker'
 import UploadZone from './UploadZone'
 import { createProject, uploadProjectImage } from '../services/projectService'
@@ -16,7 +15,6 @@ const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6)
 const EMPTY_FORM = {
   projectName: '',
   date: today,
-  surveys: 0,
   projectLength: '',
   fileName: '',
   level: '',
@@ -44,7 +42,7 @@ export default function CreateProjectPage({ onBack }) {
       const newProject = await createProject({
         code:          form.projectName,
         date:          form.date,
-        surveyCount:   Number(form.surveys),
+        metragem:      form.projectLength || null,
         projectLength: form.projectLength ? parseFloat(form.projectLength) : null,
         fileName:      form.fileName    || null,
         statuses:      form.statuses.map(v => ({ variant: v })),
@@ -100,22 +98,13 @@ export default function CreateProjectPage({ onBack }) {
                 />
               </FormField>
 
-              <div className="grid grid-cols-2 gap-4">
-                <FormField label={t('form.date')}>
-                  <FormInput
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => set('date', e.target.value)}
-                  />
-                </FormField>
-
-                <FormField label={t('form.surveyCount')}>
-                  <NumberStepper
-                    value={form.surveys}
-                    onChange={(v) => set('surveys', v)}
-                  />
-                </FormField>
-              </div>
+              <FormField label={t('form.date')}>
+                <FormInput
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => set('date', e.target.value)}
+                />
+              </FormField>
 
               <FormField label={t('form.projectLength')}>
                 <div className="relative">

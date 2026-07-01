@@ -61,34 +61,29 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
   function matchesDateFilter(p) {
     if (!datePeriod) return true
 
-    const dates = [p.created_at, p.rawDate]
-      .map(d => d ? new Date(d) : null)
-      .filter(d => d && !isNaN(d.getTime()))
-
-    if (dates.length === 0) return true
+    // Use only the survey date (rawDate = project.date field) — never created_at
+    const surveyDate = p.rawDate ? new Date(p.rawDate) : null
+    if (!surveyDate || isNaN(surveyDate.getTime())) return true
 
     if (datePeriod === '30d') {
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - 30)
-      return dates.some(d => d >= cutoff)
+      return surveyDate >= cutoff
     }
     if (datePeriod === '90d') {
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - 90)
-      return dates.some(d => d >= cutoff)
+      return surveyDate >= cutoff
     }
     if (/^\d{4}$/.test(datePeriod)) {
-      const year = parseInt(datePeriod, 10)
-      return dates.some(d => d.getFullYear() === year)
+      return surveyDate.getFullYear() === parseInt(datePeriod, 10)
     }
     if (datePeriod === 'custom') {
       const from = customFrom ? new Date(customFrom + 'T00:00:00') : null
       const to   = customTo   ? new Date(customTo   + 'T23:59:59') : null
-      return dates.some(d => {
-        if (from && d < from) return false
-        if (to   && d > to)   return false
-        return true
-      })
+      if (from && surveyDate < from) return false
+      if (to   && surveyDate > to)   return false
+      return true
     }
     return true
   }

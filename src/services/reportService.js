@@ -63,9 +63,10 @@ export async function getWeeklyReportFull(start, end) {
     let q = supabase
       .from('surveys')
       .select(fields + 'projects(id, code, statuses, rehabilitation_status, file_name, notes, project_length, project_images(url))')
-      .order('created_at', { ascending: false })
-    if (start) q = q.gte('created_at', start.toISOString())
-    if (end)   q = q.lte('created_at', end.toISOString())
+      .order('date', { ascending: false })
+    // Filter by survey DATE — not created_at — so period selection reflects when the survey happened
+    if (start) q = q.gte('date', start.toISOString())
+    if (end)   q = q.lte('date', end.toISOString())
     return q
   }
 
@@ -164,11 +165,11 @@ export async function getWeeklyReportFull(start, end) {
     .map(p => {
       const latest = surveys
         .filter(s => s.projects?.id === p.id)
-        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0]
+        .sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at))[0]
       return {
         id:   p.id,
         code: p.code,
-        date: latest ? new Date(latest.created_at).toLocaleDateString('pt-BR') : '—',
+        date: latest ? formatSurveyDate(latest.date || latest.created_at) : '—',
       }
     })
 
