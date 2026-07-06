@@ -37,6 +37,7 @@ function transform(p) {
     ...p,
     surveys:              surveyCount,
     surveyCount:          surveyCount,
+    folderId:             p.folder_id ?? null,
     rawDate:              p.date ?? p.created_at ?? null,
     date:                 toLocaleDatePT(p.date),
     metragem:             p.project_length != null ? String(p.project_length) : null,

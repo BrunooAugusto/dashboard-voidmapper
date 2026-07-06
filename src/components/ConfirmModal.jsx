@@ -1,4 +1,4 @@
-export default function ConfirmModal({ message, onConfirm, onCancel, loading, error }) {
+export default function ConfirmModal({ message, onConfirm, onCancel, loading, error, confirmLabel = 'Excluir projeto', loadingLabel = 'Excluindo...' }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -25,7 +25,7 @@ export default function ConfirmModal({ message, onConfirm, onCancel, loading, er
             disabled={loading}
             className="flex-1 h-10 rounded-full bg-danger-bg text-danger-fg text-sm font-semibold hover:brightness-95 transition-all disabled:opacity-50"
           >
-            {loading ? 'Excluindo...' : 'Excluir projeto'}
+            {loading ? loadingLabel : confirmLabel}
           </button>
         </div>
       </div>

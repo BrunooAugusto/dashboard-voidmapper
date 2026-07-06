@@ -4,18 +4,29 @@ import { cn } from '../lib/cn'
 import Card from './Card'
 import ProjectCard from './ProjectCard'
 import ConfirmModal from './ConfirmModal'
+import FolderModal from './FolderModal'
+import FolderSection from './FolderSection'
 import SearchInput from './SearchInput'
 import { getProjects, deleteProjectCascade } from '../services/projectService'
+import { getFolders, createFolder, renameFolder, deleteFolder, moveProjectToFolder } from '../services/projectFolderService'
 import { usePermissions } from '../hooks/usePermissions'
 import { useLanguage } from '../contexts/LanguageContext'
 
 const LEVELS = Array.from({ length: 19 }, (_, i) => i + 6) // 6..24
 const ITEMS_PER_PAGE = 18
 const STORAGE_KEY = 'voidmapper_projects_filters'
+const FOLDERS_STORAGE_KEY = 'voidmapper_projects_folders_expanded'
 
 function loadSavedFilters() {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) : {}
+  } catch { return {} }
+}
+
+function loadSavedExpandedFolders() {
+  try {
+    const raw = sessionStorage.getItem(FOLDERS_STORAGE_KEY)
     return raw ? JSON.parse(raw) : {}
   } catch { return {} }
 }
@@ -38,9 +49,23 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
   const [deleting,        setDeleting]        = useState(false)
   const [deleteErr,       setDeleteErr]       = useState(null)
 
+  const [folders,          setFolders]          = useState([])
+  const [expandedFolders,  setExpandedFolders]  = useState(loadSavedExpandedFolders)
+  const [folderModal,      setFolderModal]      = useState(null) // { mode: 'create' } | { mode: 'rename', folder }
+  const [folderSaving,     setFolderSaving]     = useState(false)
+  const [folderErr,        setFolderErr]        = useState(null)
+  const [pendingDeleteFolder, setPendingDeleteFolder] = useState(null)
+  const [folderDeleting,   setFolderDeleting]   = useState(false)
+  const [folderDeleteErr,  setFolderDeleteErr]  = useState(null)
+
   useEffect(() => {
     getProjects().then(setProjects).catch(console.error)
+    getFolders().then(setFolders).catch(console.error)
   }, [])
+
+  useEffect(() => {
+    try { sessionStorage.setItem(FOLDERS_STORAGE_KEY, JSON.stringify(expandedFolders)) } catch { /* ignore */ }
+  }, [expandedFolders])
 
   useEffect(() => {
     try {
@@ -105,12 +130,91 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
     return matchesSearch && matchesStatus && matchesLevel && matchesDateFilter(p)
   })
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE))
+  const folderGroups = new Map(folders.map(f => [f.id, []]))
+  const ungrouped = []
+  filtered.forEach((p) => {
+    if (p.folderId && folderGroups.has(p.folderId)) folderGroups.get(p.folderId).push(p)
+    else ungrouped.push(p)
+  })
+
+  const totalPages = Math.max(1, Math.ceil(ungrouped.length / ITEMS_PER_PAGE))
   const safePage   = Math.min(page, totalPages)
-  const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
+  const paginated  = ungrouped.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE)
 
   function toggleFilter(key) {
     setActiveFilter((prev) => (prev === key ? null : key))
+  }
+
+  function toggleFolderExpanded(folderId) {
+    setExpandedFolders((prev) => ({ ...prev, [folderId]: !(prev[folderId] ?? true) }))
+  }
+
+  async function assignProjectToFolder(projectId, folderId) {
+    const prevProjects = projects
+    setProjects((ps) => ps.map((p) => (p.id === projectId ? { ...p, folderId } : p)))
+    try {
+      await moveProjectToFolder(projectId, folderId)
+    } catch (err) {
+      console.error(err)
+      setProjects(prevProjects)
+    }
+  }
+
+  function handleDropOnFolder(e, folderId) {
+    const projectId = parseInt(e.dataTransfer.getData('text/plain'), 10)
+    if (!isNaN(projectId)) assignProjectToFolder(projectId, folderId)
+  }
+
+  function handleFolderModalSubmit(name) {
+    if (!folderModal) return
+    setFolderSaving(true)
+    setFolderErr(null)
+    const run = folderModal.mode === 'create'
+      ? createFolder(name)
+      : renameFolder(folderModal.folder.id, name)
+    run.then((result) => {
+      setFolders((fs) => {
+        const next = folderModal.mode === 'create'
+          ? [...fs, result]
+          : fs.map((f) => (f.id === result.id ? result : f))
+        return next.sort((a, b) => a.name.localeCompare(b.name))
+      })
+      if (folderModal.mode === 'create') {
+        setExpandedFolders((prev) => ({ ...prev, [result.id]: true }))
+      }
+      setFolderModal(null)
+    }).catch((err) => {
+      setFolderErr(err?.message ?? 'Erro ao salvar pasta')
+    }).finally(() => {
+      setFolderSaving(false)
+    })
+  }
+
+  function handleFolderModalCancel() {
+    if (folderSaving) return
+    setFolderModal(null)
+    setFolderErr(null)
+  }
+
+  async function handleDeleteFolderConfirm() {
+    setFolderDeleting(true)
+    setFolderDeleteErr(null)
+    try {
+      await deleteFolder(pendingDeleteFolder.id)
+      setFolders((fs) => fs.filter((f) => f.id !== pendingDeleteFolder.id))
+      setProjects((ps) => ps.map((p) => (p.folderId === pendingDeleteFolder.id ? { ...p, folderId: null } : p)))
+      setPendingDeleteFolder(null)
+    } catch (err) {
+      setFolderDeleteErr(err?.message ?? 'Erro ao excluir pasta')
+    } finally {
+      setFolderDeleting(false)
+    }
+  }
+
+  function handleDeleteFolderCancel() {
+    if (folderDeleting) return
+    setPendingDeleteFolder(null)
+    setFolderDeleteErr(null)
   }
 
   function handleDatePeriodChange(value) {
@@ -153,6 +257,15 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {perms.canCreateProject && (
+            <button
+              type="button"
+              onClick={() => setFolderModal({ mode: 'create' })}
+              className="h-10 px-5 border border-border-soft text-ink-700 text-sm font-semibold rounded-full whitespace-nowrap hover:bg-page transition-colors"
+            >
+              {t('projects.newFolder')}
+            </button>
+          )}
           {perms.canCreateProject && (
             <button
               type="button"
@@ -249,8 +362,42 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
         ))}
       </div>
 
-      {/* Projects grid */}
-      <Card>
+      {/* Folders */}
+      {folders.map((folder) => (
+        <FolderSection
+          key={folder.id}
+          folder={folder}
+          count={folderGroups.get(folder.id)?.length ?? 0}
+          expanded={expandedFolders[folder.id] ?? true}
+          onToggle={() => toggleFolderExpanded(folder.id)}
+          onRename={() => setFolderModal({ mode: 'rename', folder })}
+          onDelete={() => setPendingDeleteFolder(folder)}
+          onDrop={(e) => handleDropOnFolder(e, folder.id)}
+          canRename={perms.canEditProject}
+          canDelete={perms.canDeleteProject}
+        >
+          {(folderGroups.get(folder.id) ?? []).map((p) => (
+            <ProjectCard
+              key={p.id}
+              project={p}
+              onClick={() => onSelectProject?.(p)}
+              onDelete={id => setPendingDeleteId(id)}
+              onRemoveFromFolder={id => assignProjectToFolder(id, null)}
+              canDelete={perms.canDeleteProject}
+            />
+          ))}
+        </FolderSection>
+      ))}
+
+      {/* Ungrouped projects grid */}
+      {folders.length > 0 && ungrouped.length > 0 && (
+        <h3 className="text-sm font-medium text-ink-500 mb-2 px-1">{t('projects.folder.ungroupedTitle')}</h3>
+      )}
+      {(folders.length === 0 || ungrouped.length > 0) && (
+      <Card
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); handleDropOnFolder(e, null) }}
+      >
         {paginated.length > 0 ? (
           <>
             <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 4xl:grid-cols-4 5xl:grid-cols-5 gap-4 3xl:gap-5 4xl:gap-6">
@@ -304,6 +451,7 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
           </div>
         )}
       </Card>
+      )}
 
       {/* Centered delete confirmation modal */}
       {pendingDeleteId && (
@@ -313,6 +461,32 @@ export default function ProjectsPage({ onSelectProject, onNavigate, user }) {
           onCancel={handleDeleteCancel}
           loading={deleting}
           error={deleteErr}
+        />
+      )}
+
+      {/* Create / rename folder modal */}
+      {folderModal && (
+        <FolderModal
+          title={folderModal.mode === 'create' ? t('projects.folder.createTitle') : t('projects.folder.renameTitle')}
+          initialName={folderModal.mode === 'rename' ? folderModal.folder.name : ''}
+          submitLabel={folderModal.mode === 'create' ? t('projects.folder.create') : t('projects.folder.rename')}
+          placeholder={t('projects.folder.namePlaceholder')}
+          onSubmit={handleFolderModalSubmit}
+          onCancel={handleFolderModalCancel}
+          loading={folderSaving}
+          error={folderErr}
+        />
+      )}
+
+      {/* Delete folder confirmation modal */}
+      {pendingDeleteFolder && (
+        <ConfirmModal
+          message={t('projects.folder.deleteConfirm')}
+          confirmLabel={t('projects.folder.delete')}
+          onConfirm={handleDeleteFolderConfirm}
+          onCancel={handleDeleteFolderCancel}
+          loading={folderDeleting}
+          error={folderDeleteErr}
         />
       )}
     </>

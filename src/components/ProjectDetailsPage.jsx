@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Pencil, Trash2, FileText, Image, Clock, Plus, ChevronLeft, X } from 'lucide-react'
+import { ArrowLeft, Pencil, Trash2, FileText, Image, Clock, Plus } from 'lucide-react'
 import Card from './Card'
 import MetaCard from './MetaCard'
 import StatusBadge from './StatusBadge'
@@ -11,108 +11,21 @@ import { useLanguage } from '../contexts/LanguageContext'
 import { getProjectAuditLogs, ACTION_LABELS } from '../services/auditService'
 import { formatSurveyDate, sortSurveysByDateDesc } from '../lib/surveyDates.js'
 
-// ── Individual Survey View ────────────────────────────────────────────────────
+const TYPE_BADGE_STYLES = {
+  levantamento: 'bg-brand-500/10 text-brand-600 border-brand-500/20',
+  ltc:          'bg-warning-bg text-warning-fg border-warning-fg/20',
+  stc:          'bg-[#EEF2FF] text-[#4F46E5] border-[#6366F1]/20',
+}
 
-function SurveyDetailView({ survey, surveyIndex, totalSurveys, onBack }) {
-  const [images, setImages] = useState([])
-
-  useEffect(() => {
-    if (!survey?.id) return
-    getSurveyImages(survey.id)
-      .then(imgs => setImages(imgs.map(i => i.url ?? i.src).filter(Boolean)))
-      .catch(() => setImages([]))
-  }, [survey?.id])
-
-  const statusVariant = survey.status ?? 'success'
-
+function TypeBadge({ type }) {
+  const key = (type || 'levantamento').toLowerCase()
   return (
-    <div className="flex flex-col gap-4">
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-700 transition-colors w-fit"
-      >
-        <ChevronLeft className="w-3.5 h-3.5" strokeWidth={2} />
-        Voltar ao histórico
-      </button>
-
-      <Card>
-        <div className="p-4 sm:p-5 flex flex-col gap-4">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm font-semibold text-ink-900">
-                Levantamento #{totalSurveys - surveyIndex}
-              </span>
-              <StatusBadge variant={statusVariant}>
-                {{
-                  success: 'Aprovado',
-                  danger:  'Deformação',
-                  warning: 'Em Reabilitação',
-                  info:    'Erro',
-                }[statusVariant] ?? statusVariant}
-              </StatusBadge>
-            </div>
-            <span className="text-xs text-ink-400 shrink-0">
-              {formatSurveyDate(survey.date || survey.created_at)}
-            </span>
-          </div>
-
-          {/* Info grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="bg-page border border-border-soft rounded-lg px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400 mb-0.5">Data</p>
-              <p className="text-sm font-medium text-ink-900">
-                {formatSurveyDate(survey.date || survey.created_at)}
-              </p>
-            </div>
-            <div className="bg-page border border-border-soft rounded-lg px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400 mb-0.5">Metragem</p>
-              <p className="text-sm font-medium text-ink-900">
-                {survey.metering ? `${survey.metering} m` : '—'}
-              </p>
-            </div>
-            <div className="bg-page border border-border-soft rounded-lg px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400 mb-0.5">Tipo</p>
-              <p className="text-sm font-medium text-ink-900">
-                {survey.file_type ? survey.file_type.toUpperCase() : 'Levantamento'}
-              </p>
-            </div>
-          </div>
-
-          {/* File */}
-          {survey.file && (
-            <div className="flex items-center gap-2 bg-page border border-border-soft rounded-lg px-3 py-2">
-              <FileText className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
-              <span className="text-[11px] font-medium text-ink-500 shrink-0">Arquivo</span>
-              <span className="text-[11px] font-mono text-ink-700 truncate">{survey.file}</span>
-            </div>
-          )}
-
-          {/* Observations */}
-          {survey.observations && (
-            <div className="bg-page border border-border-soft rounded-lg px-3 py-2.5">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400 mb-1">Observações</p>
-              <p className="text-xs text-ink-700 leading-relaxed">{survey.observations}</p>
-            </div>
-          )}
-
-          {/* Images */}
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400 mb-2">Imagens</p>
-            {images.length > 0 ? (
-              <ImageCarousel images={images} />
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-2 py-8 text-ink-400 bg-page border border-border-soft rounded-lg">
-                <Image className="w-6 h-6 opacity-40" strokeWidth={1.5} />
-                <span className="text-xs">Nenhuma imagem neste levantamento</span>
-              </div>
-            )}
-          </div>
-        </div>
-      </Card>
-    </div>
+    <span className={cn(
+      'shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold border uppercase',
+      TYPE_BADGE_STYLES[key] ?? TYPE_BADGE_STYLES.levantamento,
+    )}>
+      {key}
+    </span>
   )
 }
 
@@ -128,11 +41,12 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, 
   const [deleteErr, setDeleteErr]       = useState(null)
   const [auditLogs, setAuditLogs]       = useState([])
   const [selectedSurvey, setSelectedSurvey] = useState(null)
-  const [selectedSurveyIndex, setSelectedSurveyIndex] = useState(null)
+  const [selectedSurveyImages, setSelectedSurveyImages] = useState([])
 
   useEffect(() => {
     if (!project?.id) { setLoading(false); return }
     setLoading(true)
+    setSelectedSurvey(null)
     Promise.all([
       getProjectById(project.id),
       getProjectSurveys(project.id).catch(() => []),
@@ -144,6 +58,21 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, 
     }).catch(() => setDetail(null))
       .finally(() => setLoading(false))
   }, [project?.id])
+
+  useEffect(() => {
+    if (!selectedSurvey?.id) { setSelectedSurveyImages([]); return }
+    getSurveyImages(selectedSurvey.id)
+      .then(imgs => setSelectedSurveyImages(imgs.map(i => i.url ?? i.src).filter(Boolean)))
+      .catch(() => setSelectedSurveyImages([]))
+  }, [selectedSurvey?.id])
+
+  function selectSurvey(survey) {
+    setSelectedSurvey((prev) => (prev?.id === survey.id ? null : survey))
+  }
+
+  function clearSelectedSurvey() {
+    setSelectedSurvey(null)
+  }
 
   async function handleDelete() {
     setDeleting(true)
@@ -169,52 +98,18 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, 
     .filter(Boolean)
   const projectUrl = d?.projectUrl || d?.projectLink || d?.link || d?.url || null
 
+  // Conteúdo exibido nos cards/galeria: dados do levantamento selecionado
+  // (quando houver) ou, por padrão, o agregado do projeto. O layout nunca muda.
+  const displayDate     = selectedSurvey ? formatSurveyDate(selectedSurvey.date || selectedSurvey.createdAt) : (d?.date ?? '—')
+  const displayMetragem = selectedSurvey ? (selectedSurvey.metering ? `${selectedSurvey.metering} m` : '—') : (d?.metragem ? `${d.metragem} m` : '—')
+  const displayFileName = selectedSurvey ? (selectedSurvey.file || '—') : (d?.fileName ?? '—')
+  const displayImages   = selectedSurvey ? selectedSurveyImages : images
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-sm text-ink-400">
         Carregando...
       </div>
-    )
-  }
-
-  // ── Individual survey view ───────────────────────────────────────────────
-  if (selectedSurvey) {
-    const levSurveys = sortSurveysByDateDesc(
-      surveys.filter(s => !s.file_type || s.file_type === 'levantamento')
-    )
-    return (
-      <>
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 mb-4">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-1 text-sm font-medium text-ink-500 hover:text-ink-700 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2} />
-            {t('detail.back')}
-          </button>
-          <span className="text-ink-400 text-sm">/</span>
-          <button
-            type="button"
-            onClick={() => { setSelectedSurvey(null); setSelectedSurveyIndex(null) }}
-            className="text-sm font-medium text-ink-500 hover:text-ink-700 transition-colors"
-          >
-            {code}
-          </button>
-          <span className="text-ink-400 text-sm">/</span>
-          <span className="text-sm font-semibold text-ink-900">
-            Levantamento #{levSurveys.length - selectedSurveyIndex}
-          </span>
-        </div>
-
-        <SurveyDetailView
-          survey={selectedSurvey}
-          surveyIndex={selectedSurveyIndex}
-          totalSurveys={levSurveys.length}
-          onBack={() => { setSelectedSurvey(null); setSelectedSurveyIndex(null) }}
-        />
-      </>
     )
   }
 
@@ -302,20 +197,41 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, 
             {/* Left column: info + actions + history */}
             <div className="flex flex-col gap-3">
 
+              {/* Selected survey indicator — só aparece quando um item do histórico está selecionado */}
+              {selectedSurvey && (
+                <div className="flex items-center justify-between gap-2 bg-brand-500/10 border border-brand-500/20 rounded-lg px-3 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <TypeBadge type={selectedSurvey.file_type} />
+                    <span className="text-[11px] font-medium text-brand-600">selecionado no histórico</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearSelectedSurvey}
+                    className="text-[11px] font-semibold text-brand-600 hover:underline"
+                  >
+                    Ver projeto
+                  </button>
+                </div>
+              )}
+
               {/* Filename — compact single row */}
               <div className="flex items-center gap-2 bg-page border border-border-soft rounded-lg px-3 py-2 min-w-0">
                 <FileText className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
                 <span className="text-[11px] font-medium text-ink-500 shrink-0">{t('detail.fileName')}</span>
-                <span className="text-[11px] font-mono text-ink-700 truncate" title={d?.fileName ?? ''}>
-                  {d?.fileName ?? '—'}
+                <span className="text-[11px] font-mono text-ink-700 truncate" title={displayFileName}>
+                  {displayFileName}
                 </span>
               </div>
 
               {/* 3 meta cards in a row */}
               <div className="grid grid-cols-3 gap-2">
-                <MetaCard label={t('detail.lastSurvey')}   value={d?.date ?? '—'} />
-                <MetaCard label={t('detail.surveysCount')} value={String(surveyCount)} />
-                <MetaCard label={t('detail.totalArea')}    value={d?.metragem ? `${d.metragem} m` : '—'} />
+                <MetaCard label={selectedSurvey ? 'Data' : t('detail.lastSurvey')} value={displayDate} />
+                {selectedSurvey ? (
+                  <MetaCard label="Tipo" value={(selectedSurvey.file_type || 'levantamento').toUpperCase()} />
+                ) : (
+                  <MetaCard label={t('detail.surveysCount')} value={String(surveyCount)} />
+                )}
+                <MetaCard label={t('detail.totalArea')} value={displayMetragem} />
               </div>
 
               {/* Notes */}
@@ -348,35 +264,33 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, 
                 </button>
               </div>
 
-              {/* Survey history — clicável para visualização individual */}
+              {/* Survey history — todos os tipos (Levantamento/LTC/STC), clicável */}
               {(() => {
-                const levSurveys = sortSurveysByDateDesc(
-                  surveys.filter(s => !s.file_type || s.file_type === 'levantamento')
-                )
+                const allSurveys = sortSurveysByDateDesc(surveys)
                 return (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Clock className="w-3.5 h-3.5 text-ink-400 shrink-0" strokeWidth={1.75} />
                       <span className="text-xs font-semibold text-ink-700">Histórico de Levantamentos</span>
-                      {levSurveys.length > 0 && (
+                      {allSurveys.length > 0 && (
                         <span className="text-[10px] font-bold text-brand-500 bg-brand-500/10 px-1.5 py-0.5 rounded-full">
-                          {levSurveys.length}
+                          {allSurveys.length}
                         </span>
                       )}
                     </div>
-                    {levSurveys.length > 0 && (
+                    {allSurveys.length > 0 && (
                       <div className="flex flex-col divide-y divide-border-soft rounded-lg border border-border-soft overflow-hidden max-h-[300px] overflow-y-auto">
-                        {levSurveys.map((s, i) => (
+                        {allSurveys.map((s, i) => (
                           <button
                             key={s.id ?? i}
                             type="button"
-                            onClick={() => { setSelectedSurvey(s); setSelectedSurveyIndex(i) }}
-                            className="flex items-center gap-2 px-3 py-2.5 text-xs bg-page hover:bg-surface transition-colors text-left w-full group"
+                            onClick={() => selectSurvey(s)}
+                            className={cn(
+                              'flex items-center gap-2 px-3 py-2.5 text-xs transition-colors text-left w-full group',
+                              selectedSurvey?.id === s.id ? 'bg-brand-500/10' : 'bg-page hover:bg-surface',
+                            )}
                           >
-                            {/* Chronological number: oldest=1, newest=N */}
-                            <span className="font-mono text-ink-400 shrink-0 w-5 text-right">
-                              {levSurveys.length - i}
-                            </span>
+                            <TypeBadge type={s.file_type} />
                             <span className="font-medium truncate flex-1 text-ink-700" title={s.file}>
                               {s.file || '—'}
                             </span>
@@ -399,12 +313,12 @@ export default function ProjectDetailsPage({ project, onBack, onEdit, onDelete, 
 
             {/* Right column: image gallery */}
             <div>
-              {images.length > 0 ? (
-                <ImageCarousel images={images} />
+              {displayImages.length > 0 ? (
+                <ImageCarousel images={displayImages} />
               ) : (
                 <div className="flex flex-col items-center justify-center gap-2 py-12 text-ink-400 bg-page border border-border-soft rounded-lg">
                   <Image className="w-8 h-8 opacity-40" strokeWidth={1.5} />
-                  <span className="text-sm">{t('detail.noImages')}</span>
+                  <span className="text-sm">{selectedSurvey ? 'Nenhuma imagem neste levantamento' : t('detail.noImages')}</span>
                 </div>
               )}
             </div>
